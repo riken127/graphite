@@ -1,0 +1,12 @@
+# Maven build outputs
+**/target/
+.m2/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.codex
+
+# OS noise
+.DS_Store
