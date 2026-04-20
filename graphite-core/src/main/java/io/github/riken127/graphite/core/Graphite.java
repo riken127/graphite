@@ -18,6 +18,26 @@ public final class Graphite {
   }
 
   /**
+   * Starts a CREATE query for the provided node pattern.
+   *
+   * @param nodePattern node pattern to create
+   * @return fluent CREATE query builder
+   */
+  public static CreateBuilder create(NodePattern nodePattern) {
+    return new CreateBuilder(Objects.requireNonNull(nodePattern, "nodePattern must not be null"));
+  }
+
+  /**
+   * Starts a MERGE query for the provided node pattern.
+   *
+   * @param nodePattern node pattern to merge
+   * @return fluent MERGE query builder
+   */
+  public static MergeBuilder merge(NodePattern nodePattern) {
+    return new MergeBuilder(Objects.requireNonNull(nodePattern, "nodePattern must not be null"));
+  }
+
+  /**
    * Creates a node pattern from a Java type.
    *
    * @param javaType mapped type

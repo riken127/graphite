@@ -26,11 +26,28 @@ class GraphiteDslTest {
   }
 
   @Test
-  void buildUsesNodeAliasWhenSelectIsMissing() {
+  void matchUsesNodeAliasWhenSelectIsMissing() {
     MatchQuery query = Graphite.match(Graphite.node("Consultant").as("c")).build();
 
     assertEquals(1, query.projections().size());
     assertEquals("c", query.projections().getFirst());
+  }
+
+  @Test
+  void createUsesNodeAliasWhenSelectIsMissing() {
+    CreateQuery query =
+        Graphite.create(Graphite.node("Consultant").as("c")).set("id", "42").build();
+
+    assertEquals(1, query.projections().size());
+    assertEquals("c", query.projections().getFirst());
+    assertEquals("42", query.properties().get("id"));
+  }
+
+  @Test
+  void mergeRequiresIdentityProperties() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Graphite.merge(Graphite.node("Consultant").as("c")).select("c").build());
   }
 
   @Test

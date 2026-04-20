@@ -1,6 +1,7 @@
 package io.github.riken127.graphite.core;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** Validates immutable query models before rendering or execution. */
@@ -20,6 +21,28 @@ public final class QueryValidator {
     validatePredicates(query.predicates(), nodeAlias);
     validateProjections(query.projections(), nodeAlias);
     validateSorts(query.sorts(), nodeAlias);
+  }
+
+  /**
+   * Validates a CREATE query model.
+   *
+   * @param query query to validate
+   */
+  public static void validate(CreateQuery query) {
+    Objects.requireNonNull(query, "query must not be null");
+    validateProperties(query.properties(), false);
+    validateProjections(query.projections(), query.nodePattern().alias());
+  }
+
+  /**
+   * Validates a MERGE query model.
+   *
+   * @param query query to validate
+   */
+  public static void validate(MergeQuery query) {
+    Objects.requireNonNull(query, "query must not be null");
+    validateProperties(query.properties(), true);
+    validateProjections(query.projections(), query.nodePattern().alias());
   }
 
   private static void validatePredicates(List<Predicate> predicates, String nodeAlias) {
@@ -50,6 +73,19 @@ public final class QueryValidator {
       if (!sort.alias().equals(nodeAlias)) {
         throw new IllegalArgumentException("sort alias must match node alias");
       }
+    }
+  }
+
+  private static void validateProperties(
+      Map<String, Object> properties, boolean requireAtLeastOne) {
+    Objects.requireNonNull(properties, "properties must not be null");
+    if (requireAtLeastOne && properties.isEmpty()) {
+      throw new IllegalArgumentException("merge properties must not be empty");
+    }
+
+    for (Map.Entry<String, Object> entry : properties.entrySet()) {
+      AstValidator.requireProperty(entry.getKey());
+      Objects.requireNonNull(entry.getValue(), "property value must not be null");
     }
   }
 }
