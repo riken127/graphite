@@ -180,3 +180,19 @@ MatchQuery query =
 
 RenderedQuery rendered = new MatchQueryRenderer().render(query);
 ```
+
+## MVP Operations
+
+```java
+CreateQuery createQuery =
+    Graphite.create(Graphite.node("Consultant").as("c"))
+        .set("id", "123")
+        .set("name", "Julia")
+        .build();
+
+MergeQuery mergeQuery =
+    Graphite.merge(Graphite.node("Consultant").as("c"))
+        .on("id", "123")
+        .on("tenant", "acme")
+        .build();
+```
