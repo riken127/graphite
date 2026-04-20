@@ -148,6 +148,18 @@ Graphite exists to restore that balance.
 * `graphite-test`: shared test support utilities
 * `graphite-examples`: minimal usage examples
 
+### Core Package Layout
+
+* `io.github.riken127.graphite.core.dsl`: fluent API entry points and builders
+* `io.github.riken127.graphite.core.model`: immutable query AST
+* `io.github.riken127.graphite.core.model.predicate`: predicate model types
+* `io.github.riken127.graphite.core.validation`: query validation rules
+
+### Cypher Package Layout
+
+* `io.github.riken127.graphite.cypher.renderer`: query renderers and helpers
+* `io.github.riken127.graphite.cypher.model`: rendered Cypher output model
+
 ### Style and Linting
 
 * `.editorconfig` defines shared editor defaults
@@ -173,9 +185,12 @@ mvn -pl graphite-core test
 MatchQuery query =
     Graphite.match(Graphite.node("Consultant").as("c"))
         .where(Graphite.property("c", "id").eq("123"))
-        .select("c")
+        .where(Graphite.property("c", "skills").in(List.of("java", "neo4j")))
+        .where(Graphite.property("c", "deletedAt").isNull())
+        .select("c", "c.id")
         .orderBy(Graphite.desc("c", "createdAt"))
-        .limit(5)
+        .skip(0)
+        .limit(25)
         .build();
 
 RenderedQuery rendered = new MatchQueryRenderer().render(query);
@@ -194,5 +209,7 @@ MergeQuery mergeQuery =
     Graphite.merge(Graphite.node("Consultant").as("c"))
         .on("id", "123")
         .on("tenant", "acme")
+        .onCreateSet("createdAt", "2026-04-20")
+        .onMatchSet("lastSeen", "2026-04-20")
         .build();
 ```
