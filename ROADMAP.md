@@ -114,7 +114,7 @@ Completed foundations:
 
 * Stable runtime result and exception contracts
 * Query options, causal bookmarks, and transaction APIs
-* Cached Java-record mapping
+* Cached Java-record and immutable-object mapping
 * Neo4j Testcontainers integration suite
 
 Remaining work:
@@ -122,7 +122,7 @@ Remaining work:
 * Expression and pattern comprehensions plus vendor-specific clauses
 * Benchmarks and compatibility matrix
 * Versioned migration tooling
-* Generated metamodels
+* KSP and native Scala metamodel generation
 
 Recently completed:
 
@@ -135,6 +135,8 @@ Recently completed:
 * Reusable test helpers and a runnable runtime example
 * General write clauses, searched CASE/list/map expressions, scoped subqueries, unions, and calls
 * Optional Kotlin and Scala 3 DSL adapters with native typed entity references
+* Constructor-backed Java/Kotlin/Scala object mapping with custom factories
+* Generated Java metamodels with compile-time mapping validation
 
 Deliverables:
 
@@ -148,7 +150,7 @@ Status: Pending
 
 Goals:
 
-* Generated metamodels
+* KSP and native Scala metamodel derivation
 * Lambda property references
 * Reactive support
 * Query analysis

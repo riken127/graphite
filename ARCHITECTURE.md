@@ -61,10 +61,23 @@ Maps Java types into graph metadata.
 Responsibilities:
 
 * node labels, IDs, and property names
-* validated reflection descriptors for Java records
+* validated reflection descriptors for records and constructor-backed immutable objects
 * thread-safe cached metadata lookup
 * metadata-backed typed query references
-* nested record construction, generic collections, and extensible value conversion
+* nested object construction, generic collections, custom factories, and value conversion
+
+## graphite-metamodel-processor
+
+Optional Java annotation processor over `graphite-metadata`.
+
+Responsibilities:
+
+* Compile-time validation of `@GraphNode` constructor mappings
+* Generation of typed `GraphMetamodel` and `GraphAttribute` descriptors
+* Refactor-safe property access without runtime reflection
+
+The processor is build-time only. Generated code depends on `graphite-metadata`, while runtime
+metadata and core remain independent of the processor.
 
 ## graphite-neo4j
 
@@ -80,7 +93,7 @@ Responsibilities:
 * Idempotent schema operations
 * Managed retryable and explicit transactions
 * Driver-to-Graphite exception translation
-* Node and relationship record mappers
+* Node and relationship object mappers
 
 ## graphite-kotlin and graphite-scala
 

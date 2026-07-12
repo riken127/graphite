@@ -143,6 +143,7 @@ Graphite exists to restore that balance.
 * `graphite-core`: core graph API primitives
 * `graphite-cypher`: Cypher-oriented query building utilities
 * `graphite-metadata`: metadata and mapping models
+* `graphite-metamodel-processor`: compile-time typed metamodel generation for Java entities
 * `graphite-kotlin`: Kotlin receiver DSL, reified helpers, and `KProperty1` entity references
 * `graphite-scala`: Scala 3 builders, operators, `ClassTag` entities, and collection conversions
 * `graphite-neo4j`: Neo4j Java Driver execution and transaction adapter
@@ -437,9 +438,10 @@ try (StreamingQueryResult<Consultant> results =
 when converting it to a Java `Stream`. `GraphiteSpringTemplate.stream(...)` is available outside
 `@Transactional`; a stream owns its transaction and is rejected inside a Spring-managed one.
 
-## Record Mapping
+## Object Mapping
 
-The metadata module maps returned node or relationship properties into immutable Java records.
+The metadata module maps returned node or relationship properties into Java records,
+constructor-backed immutable classes, Kotlin data classes, and top-level Scala case classes.
 
 ```java
 @GraphNode("Consultant")
@@ -448,17 +450,61 @@ record Consultant(
     @GraphProperty("display_name") String name,
     int rating) {}
 
-RecordEntityMapper entities =
-    new RecordEntityMapper(new ReflectionNodeMetadataRegistry());
+GraphObjectMapper entities =
+    new GraphObjectMapper(new ReflectionNodeMetadataRegistry());
 
 Consultant consultant =
     client.execute(query, Neo4jMappers.node("c", Consultant.class, entities)).single();
 ```
 
-Metadata is validated and cached per record type. Missing primitive properties, duplicate graph
+Records use their canonical constructor. Other immutable classes may expose one constructor or mark
+the intended constructor with `@GraphConstructor`; annotations can be placed on its parameters,
+matching fields, or accessors. `GraphObjectFactories` provides an explicit factory escape hatch for
+builder-based or otherwise non-reflective construction. `RecordEntityMapper` remains as a
+record-only compatibility facade.
+
+Metadata is validated and cached per mapped type. Missing primitive properties, duplicate graph
 property names, invalid identifiers, unsupported target types, and unsafe numeric narrowing fail
-with metadata-specific exceptions. Nested records, `Optional`, typed `List`/`Set` values, enums,
-UUIDs, exact numeric conversion, and application `GraphValueConverter` registrations are supported.
+with metadata-specific exceptions. Nested immutable objects, `Optional`, typed `List`/`Set`/`Map`
+values, enums, UUIDs, exact numeric conversion, and application `GraphValueConverter` registrations
+are supported.
+
+## Generated Metamodels
+
+Add `graphite-metamodel-processor` to the compiler annotation-processor path. Every top-level Java
+type annotated with `@GraphNode` receives a sibling metamodel named with a trailing underscore:
+
+```xml
+<plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-compiler-plugin</artifactId>
+  <configuration>
+    <annotationProcessorPaths>
+      <path>
+        <groupId>io.github.riken127</groupId>
+        <artifactId>graphite-metamodel-processor</artifactId>
+        <version>${graphite.version}</version>
+      </path>
+    </annotationProcessorPaths>
+  </configuration>
+</plugin>
+```
+
+```java
+GraphEntity<Consultant> consultant = Consultant_.entity("c");
+
+ClauseQuery query =
+    Graphite.query()
+        .match(Graphite.path(consultant.node()).build())
+        .where(Consultant_.RATING.of(consultant).gte(7))
+        .returning(Expressions.project(Consultant_.NAME.of(consultant), "name"))
+        .build();
+```
+
+Generated `GraphAttribute` constants preserve owner and value types, graph-name overrides, identity
+markers, and constructor order. Invalid labels, duplicate graph names, ambiguous constructors, and
+multiple IDs fail during compilation. Kotlin can continue using `KProperty1`; KSP and native Scala
+derivation are separate future integrations.
 
 ## Operations and Observability
 
@@ -511,7 +557,8 @@ The implemented production foundation currently includes:
 * materialized and closeable streaming Neo4j execution
 * query summaries, counters, bookmarks, observations, and typed failure mapping
 * managed and explicit transactions, including Spring transaction participation
-* cached nested Java-record mapping with generic collections and custom converters
+* cached constructor-backed object mapping with generic collections and custom factories/converters
+* generated Java metamodels with typed, alias-qualified property attributes
 * idempotent index and uniqueness-constraint management
 * Spring Boot auto-configuration with overridable beans and external connection settings
 * Docker-conditional Neo4j and real Spring transaction integration coverage
@@ -520,5 +567,5 @@ The implemented production foundation currently includes:
 The compatibility write builders still use fixed operation shapes, while the ordered AST provides
 the composable path. Dynamic labels/types, list and pattern comprehensions, procedure `YIELD`
 renaming, and vendor-specific clauses still use the raw-Cypher escape hatch. Reactive execution,
-generated metamodels, full migration versioning, driver compatibility matrices, and performance
-benchmarks remain separate production-hardening tracks.
+KSP/Scala metamodel generation, full migration versioning, driver compatibility matrices, and
+performance benchmarks remain separate production-hardening tracks.
