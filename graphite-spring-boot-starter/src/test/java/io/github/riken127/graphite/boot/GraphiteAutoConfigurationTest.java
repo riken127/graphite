@@ -5,6 +5,8 @@ import static org.mockito.Mockito.mock;
 
 import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
 import io.github.riken127.graphite.metadata.GraphEntityFactory;
+import io.github.riken127.graphite.metadata.GraphObjectFactories;
+import io.github.riken127.graphite.metadata.GraphObjectMapper;
 import io.github.riken127.graphite.metadata.GraphValueConverters;
 import io.github.riken127.graphite.metadata.NodeMetadataRegistry;
 import io.github.riken127.graphite.metadata.RecordEntityMapper;
@@ -43,6 +45,8 @@ class GraphiteAutoConfigurationTest {
               assertThat(context).hasSingleBean(GraphiteTransactionManager.class);
               assertThat(context).hasSingleBean(NodeMetadataRegistry.class);
               assertThat(context).hasSingleBean(RecordEntityMapper.class);
+              assertThat(context).hasSingleBean(GraphObjectMapper.class);
+              assertThat(context).hasSingleBean(GraphObjectFactories.class);
               assertThat(context).hasSingleBean(GraphEntityFactory.class);
               assertThat(context).hasSingleBean(QueryObserver.class);
               assertThat(context).hasSingleBean(GraphiteSchemaManager.class);

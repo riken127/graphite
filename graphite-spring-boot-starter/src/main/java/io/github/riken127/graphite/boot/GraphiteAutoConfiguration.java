@@ -2,6 +2,8 @@ package io.github.riken127.graphite.boot;
 
 import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
 import io.github.riken127.graphite.metadata.GraphEntityFactory;
+import io.github.riken127.graphite.metadata.GraphObjectFactories;
+import io.github.riken127.graphite.metadata.GraphObjectMapper;
 import io.github.riken127.graphite.metadata.GraphValueConverters;
 import io.github.riken127.graphite.metadata.NodeMetadataRegistry;
 import io.github.riken127.graphite.metadata.RecordEntityMapper;
@@ -85,6 +87,21 @@ public class GraphiteAutoConfiguration {
   @ConditionalOnMissingBean
   GraphiteSchemaManager graphiteSchemaManager(GraphiteClient client, QueryOptions queryOptions) {
     return new GraphiteSchemaManager(client, queryOptions);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  GraphObjectFactories graphiteObjectFactories() {
+    return GraphObjectFactories.empty();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  GraphObjectMapper graphiteObjectMapper(
+      NodeMetadataRegistry metadataRegistry,
+      GraphValueConverters converters,
+      GraphObjectFactories factories) {
+    return new GraphObjectMapper(metadataRegistry, converters, factories);
   }
 
   @Bean
