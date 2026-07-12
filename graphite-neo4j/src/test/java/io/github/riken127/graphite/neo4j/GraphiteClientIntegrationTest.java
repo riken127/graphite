@@ -3,6 +3,7 @@ package io.github.riken127.graphite.neo4j;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.riken127.graphite.core.dsl.Graphite;
 import io.github.riken127.graphite.core.model.CreateQuery;
@@ -19,7 +20,10 @@ import io.github.riken127.graphite.neo4j.exception.GraphiteClientException;
 import io.github.riken127.graphite.neo4j.exception.GraphiteResultCardinalityException;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +40,8 @@ class GraphiteClientIntegrationTest {
 
   @Container
   private static final Neo4jContainer NEO4J =
-      new Neo4jContainer("neo4j:5.26-community").withoutAuthentication();
+      new Neo4jContainer(System.getProperty("graphite.neo4j.image", "neo4j:5.26-community"))
+          .withoutAuthentication();
 
   private static Driver driver;
   private static GraphiteClient client;
@@ -238,6 +243,87 @@ class GraphiteClientIntegrationTest {
             QueryOptions.builder().accessMode(QueryAccessMode.READ).build());
     assertThrows(GraphiteResultCardinalityException.class, result::single);
     assertThrows(GraphiteResultCardinalityException.class, result::optional);
+  }
+
+  @Test
+  void streamsResultsAndReportsSuccessfulObservation() {
+    client.execute(createConsultant("1"));
+    client.execute(createConsultant("2"));
+    AtomicReference<QueryDescriptor> descriptor = new AtomicReference<>();
+    AtomicBoolean succeeded = new AtomicBoolean();
+    GraphiteClient observedClient =
+        new GraphiteClient(
+            driver,
+            new io.github.riken127.graphite.cypher.renderer.CypherRenderer(),
+            QueryOptions.defaults(),
+            query -> {
+              descriptor.set(query);
+              return new QueryObservation() {
+                @Override
+                public void succeeded(QuerySummary summary, long recordCount) {
+                  succeeded.set(recordCount == 2);
+                }
+              };
+            });
+
+    try (StreamingQueryResult<String> result =
+        observedClient.stream(
+            new RawCypherQuery("MATCH (c:Consultant) RETURN c.id AS id ORDER BY id", Map.of()),
+            row -> row.value("id").asString(),
+            QueryOptions.builder().accessMode(QueryAccessMode.READ).build())) {
+      assertEquals(List.of("1", "2"), result.stream().toList());
+      assertTrue(result.completed());
+      assertTrue(result.summary().isPresent());
+      assertFalse(result.bookmarks().isEmpty());
+    }
+
+    assertEquals("MATCH", descriptor.get().operation());
+    assertTrue(descriptor.get().streaming());
+    assertTrue(succeeded.get());
+  }
+
+  @Test
+  void rollsBackPartiallyConsumedWriteStreamOnClose() {
+    StreamingQueryResult<String> result =
+        client.stream(
+            new RawCypherQuery(
+                "UNWIND $ids AS id CREATE (c:Consultant {id: id}) RETURN c.id AS id",
+                Map.of("ids", List.of("1", "2"))),
+            row -> row.value("id").asString(),
+            QueryOptions.builder().accessMode(QueryAccessMode.WRITE).build());
+
+    assertEquals("1", result.next());
+    result.close();
+
+    assertFalse(result.completed());
+    assertEquals(0, consultantCount());
+  }
+
+  @Test
+  void managesIdempotentIndexesAndConstraints() {
+    GraphiteSchemaManager schema = new GraphiteSchemaManager(client);
+
+    assertEquals(
+        1,
+        schema
+            .ensureUniqueConstraint("consultant_id_unique", "Consultant", "id")
+            .counters()
+            .constraintsAdded());
+    assertEquals(
+        0,
+        schema
+            .ensureUniqueConstraint("consultant_id_unique", "Consultant", "id")
+            .counters()
+            .constraintsAdded());
+    assertEquals(
+        1,
+        schema
+            .ensureRangeIndex("consultant_name_index", "Consultant", "name")
+            .counters()
+            .indexesAdded());
+
+    schema.dropIndex("consultant_name_index");
+    schema.dropConstraint("consultant_id_unique");
   }
 
   private static CreateQuery createConsultant(String id) {

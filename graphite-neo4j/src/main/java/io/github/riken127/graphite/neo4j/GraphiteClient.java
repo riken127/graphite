@@ -1,5 +1,6 @@
 package io.github.riken127.graphite.neo4j;
 
+import io.github.riken127.graphite.core.model.ClauseQuery;
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.Query;
 import io.github.riken127.graphite.cypher.model.RawCypherQuery;
@@ -11,6 +12,7 @@ import java.util.Set;
 import org.neo4j.driver.AccessMode;
 import org.neo4j.driver.Bookmark;
 import org.neo4j.driver.Driver;
+import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.SessionConfig;
 import org.neo4j.driver.TransactionConfig;
@@ -25,16 +27,24 @@ public final class GraphiteClient implements GraphiteOperations {
   private final Driver driver;
   private final CypherRenderer renderer;
   private final QueryOptions defaultOptions;
+  private final QueryObserver observer;
 
   public GraphiteClient(Driver driver) {
-    this(driver, new CypherRenderer(), QueryOptions.defaults());
+    this(driver, new CypherRenderer(), QueryOptions.defaults(), QueryObserver.noop());
   }
 
   /** Creates a client with explicit rendering and execution defaults. */
   public GraphiteClient(Driver driver, CypherRenderer renderer, QueryOptions defaultOptions) {
+    this(driver, renderer, defaultOptions, QueryObserver.noop());
+  }
+
+  /** Creates a client with explicit defaults and a query observability hook. */
+  public GraphiteClient(
+      Driver driver, CypherRenderer renderer, QueryOptions defaultOptions, QueryObserver observer) {
     this.driver = Objects.requireNonNull(driver, "driver must not be null");
     this.renderer = Objects.requireNonNull(renderer, "renderer must not be null");
     this.defaultOptions = Objects.requireNonNull(defaultOptions, "defaultOptions must not be null");
+    this.observer = Objects.requireNonNull(observer, "observer must not be null");
   }
 
   /** Verifies that the configured driver can reach and authenticate with Neo4j. */
@@ -88,6 +98,46 @@ public final class GraphiteClient implements GraphiteOperations {
     return executeRendered(renderer.render(query), mapper, options, resolveRawAccessMode(options));
   }
 
+  /** Opens a closeable stream for a structured query using default options. */
+  public StreamingQueryResult<Neo4jRecord> stream(Query query) {
+    return stream(query, record -> record, defaultOptions);
+  }
+
+  /** Opens a mapped closeable stream for a structured query using default options. */
+  public <T> StreamingQueryResult<T> stream(Query query, Neo4jRecordMapper<T> mapper) {
+    return stream(query, mapper, defaultOptions);
+  }
+
+  /** Opens a mapped closeable stream for a structured query. */
+  public <T> StreamingQueryResult<T> stream(
+      Query query, Neo4jRecordMapper<T> mapper, QueryOptions options) {
+    Objects.requireNonNull(query, "query must not be null");
+    return streamRendered(
+        renderer.render(query), mapper, options, resolveAccessMode(query, options));
+  }
+
+  /** Opens a closeable stream for raw Cypher using default write-safe routing. */
+  public StreamingQueryResult<Neo4jRecord> stream(RawCypherQuery query) {
+    return stream(query, record -> record, defaultOptions);
+  }
+
+  /** Opens a mapped closeable stream for raw Cypher using default write-safe routing. */
+  public <T> StreamingQueryResult<T> stream(RawCypherQuery query, Neo4jRecordMapper<T> mapper) {
+    return stream(query, mapper, defaultOptions);
+  }
+
+  /** Opens a closeable stream for raw Cypher using explicit routing options. */
+  public StreamingQueryResult<Neo4jRecord> stream(RawCypherQuery query, QueryOptions options) {
+    return stream(query, record -> record, options);
+  }
+
+  /** Opens a closeable stream for raw Cypher using explicit routing options. */
+  public <T> StreamingQueryResult<T> stream(
+      RawCypherQuery query, Neo4jRecordMapper<T> mapper, QueryOptions options) {
+    Objects.requireNonNull(query, "query must not be null");
+    return streamRendered(renderer.render(query), mapper, options, resolveRawAccessMode(options));
+  }
+
   /** Executes retryable managed read work and returns its causal bookmarks. */
   public <T> TransactionResult<T> readTransaction(TransactionWork<T> work) {
     return readTransaction(work, defaultOptions);
@@ -120,7 +170,7 @@ public final class GraphiteClient implements GraphiteOperations {
       org.neo4j.driver.Transaction transaction =
           session.beginTransaction(transactionConfig(validatedOptions));
       return new GraphiteExplicitTransaction(
-          session, transaction, new DriverQueryExecutor(transaction, renderer));
+          session, transaction, new DriverQueryExecutor(transaction, renderer, observer));
     } catch (RuntimeException failure) {
       session.close();
       throw DriverExceptionTranslator.translate(failure);
@@ -150,6 +200,43 @@ public final class GraphiteClient implements GraphiteOperations {
     }
   }
 
+  private <T> StreamingQueryResult<T> streamRendered(
+      RenderedQuery renderedQuery,
+      Neo4jRecordMapper<T> mapper,
+      QueryOptions options,
+      QueryAccessMode accessMode) {
+    Objects.requireNonNull(mapper, "mapper must not be null");
+    QueryOptions validatedOptions = Objects.requireNonNull(options, "options must not be null");
+    QueryObservation observation =
+        QueryObservations.begin(observer, QueryObservations.descriptor(renderedQuery, true));
+    Session session = null;
+    org.neo4j.driver.Transaction transaction = null;
+    try {
+      session = driver.session(sessionConfig(validatedOptions, accessMode));
+      transaction = session.beginTransaction(transactionConfig(validatedOptions));
+      Result result = transaction.run(renderedQuery.cypher(), renderedQuery.parameters());
+      return new StreamingQueryResult<>(session, transaction, result, mapper, observation);
+    } catch (RuntimeException failure) {
+      if (transaction != null) {
+        try {
+          transaction.close();
+        } catch (RuntimeException closeFailure) {
+          failure.addSuppressed(closeFailure);
+        }
+      }
+      if (session != null) {
+        try {
+          session.close();
+        } catch (RuntimeException closeFailure) {
+          failure.addSuppressed(closeFailure);
+        }
+      }
+      RuntimeException translated = DriverExceptionTranslator.translate(failure);
+      QueryObservations.failed(observation, translated);
+      throw translated;
+    }
+  }
+
   private <T> TransactionResult<T> managedTransaction(
       QueryAccessMode accessMode, TransactionWork<T> work, QueryOptions options) {
     Objects.requireNonNull(work, "work must not be null");
@@ -171,7 +258,7 @@ public final class GraphiteClient implements GraphiteOperations {
   }
 
   private DriverQueryExecutor executorFor(org.neo4j.driver.TransactionContext transaction) {
-    return new DriverQueryExecutor(transaction, renderer);
+    return new DriverQueryExecutor(transaction, renderer, observer);
   }
 
   private static QueryAccessMode resolveAccessMode(Query query, QueryOptions options) {
@@ -180,7 +267,9 @@ public final class GraphiteClient implements GraphiteOperations {
     if (requested != QueryAccessMode.AUTO) {
       return requested;
     }
-    return query instanceof MatchQuery ? QueryAccessMode.READ : QueryAccessMode.WRITE;
+    return query instanceof MatchQuery || query instanceof ClauseQuery
+        ? QueryAccessMode.READ
+        : QueryAccessMode.WRITE;
   }
 
   private static QueryAccessMode resolveRawAccessMode(QueryOptions options) {

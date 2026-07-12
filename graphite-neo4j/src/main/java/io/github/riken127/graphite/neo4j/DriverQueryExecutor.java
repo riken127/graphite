@@ -18,10 +18,17 @@ final class DriverQueryExecutor implements GraphiteOperations {
 
   private final SimpleQueryRunner queryRunner;
   private final CypherRenderer renderer;
+  private final QueryObserver observer;
 
   DriverQueryExecutor(SimpleQueryRunner queryRunner, CypherRenderer renderer) {
+    this(queryRunner, renderer, QueryObserver.noop());
+  }
+
+  DriverQueryExecutor(
+      SimpleQueryRunner queryRunner, CypherRenderer renderer, QueryObserver observer) {
     this.queryRunner = Objects.requireNonNull(queryRunner, "queryRunner must not be null");
     this.renderer = Objects.requireNonNull(renderer, "renderer must not be null");
+    this.observer = Objects.requireNonNull(observer, "observer must not be null");
   }
 
   @Override
@@ -47,6 +54,8 @@ final class DriverQueryExecutor implements GraphiteOperations {
   <T> QueryResult<T> executeRendered(RenderedQuery renderedQuery, Neo4jRecordMapper<T> mapper) {
     Objects.requireNonNull(renderedQuery, "renderedQuery must not be null");
     Objects.requireNonNull(mapper, "mapper must not be null");
+    QueryObservation observation =
+        QueryObservations.begin(observer, QueryObservations.descriptor(renderedQuery, false));
 
     try {
       Result result = queryRunner.run(renderedQuery.cypher(), renderedQuery.parameters());
@@ -62,9 +71,14 @@ final class DriverQueryExecutor implements GraphiteOperations {
         }
       }
 
-      return new QueryResult<>(mappedRecords, DriverSummaryMapper.map(result.consume()), Set.of());
+      QueryResult<T> mappedResult =
+          new QueryResult<>(mappedRecords, DriverSummaryMapper.map(result.consume()), Set.of());
+      QueryObservations.succeeded(observation, mappedResult.summary(), mappedRecords.size());
+      return mappedResult;
     } catch (RuntimeException failure) {
-      throw DriverExceptionTranslator.translate(failure);
+      RuntimeException translated = DriverExceptionTranslator.translate(failure);
+      QueryObservations.failed(observation, translated);
+      throw translated;
     }
   }
 }
