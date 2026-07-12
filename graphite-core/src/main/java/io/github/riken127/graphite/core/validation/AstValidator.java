@@ -41,6 +41,11 @@ public final class AstValidator {
     return requireIdentifier(label, "label");
   }
 
+  /** Validates a relationship type identifier. */
+  public static String requireRelationshipType(String relationshipType) {
+    return requireIdentifier(relationshipType, "relationshipType");
+  }
+
   /**
    * Validates a projection expression.
    *

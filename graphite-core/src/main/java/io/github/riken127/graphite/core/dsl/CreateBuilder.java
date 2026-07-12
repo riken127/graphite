@@ -17,6 +17,7 @@ public final class CreateBuilder {
   private final NodePattern nodePattern;
   private final Map<String, Object> properties;
   private final List<String> projections;
+  private boolean returnResults = true;
 
   CreateBuilder(NodePattern nodePattern) {
     this.nodePattern = Objects.requireNonNull(nodePattern, "nodePattern must not be null");
@@ -62,6 +63,14 @@ public final class CreateBuilder {
     Objects.requireNonNull(expressions, "expressions must not be null");
     projections.clear();
     projections.addAll(Arrays.asList(expressions));
+    returnResults = true;
+    return this;
+  }
+
+  /** Omits the RETURN clause for write-only execution. */
+  public CreateBuilder withoutReturn() {
+    projections.clear();
+    returnResults = false;
     return this;
   }
 
@@ -72,7 +81,9 @@ public final class CreateBuilder {
    */
   public CreateQuery build() {
     List<String> selected =
-        projections.isEmpty() ? List.of(nodePattern.alias()) : List.copyOf(projections);
+        returnResults && projections.isEmpty()
+            ? List.of(nodePattern.alias())
+            : List.copyOf(projections);
 
     CreateQuery query = new CreateQuery(nodePattern, properties, selected);
     QueryValidator.validate(query);

@@ -2,7 +2,11 @@ package io.github.riken127.graphite.core.dsl;
 
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.NodePattern;
+import io.github.riken127.graphite.core.model.PathPattern;
+import io.github.riken127.graphite.core.model.RelationshipDirection;
+import io.github.riken127.graphite.core.model.RelationshipPattern;
 import io.github.riken127.graphite.core.model.Sort;
+import io.github.riken127.graphite.core.model.Traversal;
 import io.github.riken127.graphite.core.model.predicate.Predicate;
 import io.github.riken127.graphite.core.validation.QueryValidator;
 import java.util.ArrayList;
@@ -17,6 +21,7 @@ public final class MatchBuilder {
   private final List<Predicate> predicates;
   private final List<String> projections;
   private final List<Sort> sorts;
+  private final List<Traversal> traversals;
   private Integer skip;
   private Integer limit;
 
@@ -25,6 +30,22 @@ public final class MatchBuilder {
     this.predicates = new ArrayList<>();
     this.projections = new ArrayList<>();
     this.sorts = new ArrayList<>();
+    this.traversals = new ArrayList<>();
+  }
+
+  /** Starts an outgoing relationship traversal. */
+  public RelationshipStepBuilder out(String relationshipType) {
+    return new RelationshipStepBuilder(this, relationshipType, RelationshipDirection.OUTGOING);
+  }
+
+  /** Starts an incoming relationship traversal. */
+  public RelationshipStepBuilder in(String relationshipType) {
+    return new RelationshipStepBuilder(this, relationshipType, RelationshipDirection.INCOMING);
+  }
+
+  /** Starts an undirected relationship traversal. */
+  public RelationshipStepBuilder related(String relationshipType) {
+    return new RelationshipStepBuilder(this, relationshipType, RelationshipDirection.UNDIRECTED);
   }
 
   /**
@@ -90,6 +111,38 @@ public final class MatchBuilder {
     return this;
   }
 
+  /** Starts an update of the matched pattern. */
+  public UpdateBuilder update() {
+    return new UpdateBuilder(pathPattern(), predicates);
+  }
+
+  /** Starts an update by assigning a property on the first matched node. */
+  public UpdateBuilder set(String property, Object value) {
+    return update().set(property, value);
+  }
+
+  /** Deletes the first matched node. */
+  public DeleteBuilder delete() {
+    return delete(nodePattern.alias());
+  }
+
+  /** Deletes the selected matched aliases. */
+  public DeleteBuilder delete(String... aliases) {
+    Objects.requireNonNull(aliases, "aliases must not be null");
+    return new DeleteBuilder(pathPattern(), predicates, Arrays.asList(aliases), false);
+  }
+
+  /** Detaches and deletes the first matched node. */
+  public DeleteBuilder detachDelete() {
+    return detachDelete(nodePattern.alias());
+  }
+
+  /** Detaches and deletes the selected matched node aliases. */
+  public DeleteBuilder detachDelete(String... aliases) {
+    Objects.requireNonNull(aliases, "aliases must not be null");
+    return new DeleteBuilder(pathPattern(), predicates, Arrays.asList(aliases), true);
+  }
+
   /**
    * Builds an immutable query model.
    *
@@ -99,8 +152,18 @@ public final class MatchBuilder {
     List<String> selected =
         projections.isEmpty() ? List.of(nodePattern.alias()) : List.copyOf(projections);
 
-    MatchQuery query = new MatchQuery(nodePattern, predicates, selected, sorts, skip, limit);
+    MatchQuery query = new MatchQuery(pathPattern(), predicates, selected, sorts, skip, limit);
     QueryValidator.validate(query);
     return query;
+  }
+
+  MatchBuilder addTraversal(RelationshipPattern relationship, NodePattern target) {
+    traversals.add(
+        new Traversal(relationship, Objects.requireNonNull(target, "target must not be null")));
+    return this;
+  }
+
+  private PathPattern pathPattern() {
+    return new PathPattern(nodePattern, traversals);
   }
 }

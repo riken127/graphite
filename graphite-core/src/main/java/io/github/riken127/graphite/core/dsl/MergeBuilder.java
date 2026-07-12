@@ -19,6 +19,7 @@ public final class MergeBuilder {
   private final Map<String, Object> onCreateProperties;
   private final Map<String, Object> onMatchProperties;
   private final List<String> projections;
+  private boolean returnResults = true;
 
   MergeBuilder(NodePattern nodePattern) {
     this.nodePattern = Objects.requireNonNull(nodePattern, "nodePattern must not be null");
@@ -122,6 +123,14 @@ public final class MergeBuilder {
     Objects.requireNonNull(expressions, "expressions must not be null");
     projections.clear();
     projections.addAll(Arrays.asList(expressions));
+    returnResults = true;
+    return this;
+  }
+
+  /** Omits the RETURN clause for write-only execution. */
+  public MergeBuilder withoutReturn() {
+    projections.clear();
+    returnResults = false;
     return this;
   }
 
@@ -132,7 +141,9 @@ public final class MergeBuilder {
    */
   public MergeQuery build() {
     List<String> selected =
-        projections.isEmpty() ? List.of(nodePattern.alias()) : List.copyOf(projections);
+        returnResults && projections.isEmpty()
+            ? List.of(nodePattern.alias())
+            : List.copyOf(projections);
 
     MergeQuery query =
         new MergeQuery(

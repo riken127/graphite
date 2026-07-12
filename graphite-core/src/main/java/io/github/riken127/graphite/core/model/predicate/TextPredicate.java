@@ -19,9 +19,6 @@ public record TextPredicate(String alias, String property, TextOperator operator
     alias = AstValidator.requireAlias(alias);
     property = AstValidator.requireProperty(property);
     Objects.requireNonNull(operator, "operator must not be null");
-    if (value == null || value.isBlank()) {
-      throw new IllegalArgumentException("value must not be blank");
-    }
-    value = value.trim();
+    Objects.requireNonNull(value, "value must not be null");
   }
 }

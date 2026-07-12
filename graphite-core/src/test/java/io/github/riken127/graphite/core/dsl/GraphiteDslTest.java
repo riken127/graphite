@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.github.riken127.graphite.core.model.CreateQuery;
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.MergeQuery;
+import io.github.riken127.graphite.core.model.UpdateQuery;
 import io.github.riken127.graphite.core.model.predicate.InPredicate;
 import java.util.List;
 import java.util.Map;
@@ -75,5 +76,39 @@ class GraphiteDslTest {
   void inPredicateRejectsEmptyValues() {
     assertThrows(
         IllegalArgumentException.class, () -> Graphite.property("c", "skills").in(List.of()));
+  }
+
+  @Test
+  void matchSupportsRelationshipPathsAndMultipleAliases() {
+    MatchQuery query =
+        Graphite.match(Graphite.node("Consultant").as("c"))
+            .out("REFERRED_BY")
+            .as("ref")
+            .to(Graphite.node("Consultant").as("m"))
+            .select("m", "ref")
+            .build();
+
+    assertEquals(1, query.pathPattern().traversals().size());
+    assertEquals(List.of("m", "ref"), query.projections());
+  }
+
+  @Test
+  void updateRequiresAtLeastOneMutation() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> Graphite.match(Graphite.node("Consultant").as("c")).update().build());
+  }
+
+  @Test
+  void updateCanTargetAnyMatchedAlias() {
+    UpdateQuery query =
+        Graphite.match(Graphite.node("Consultant").as("c"))
+            .out("REFERRED_BY")
+            .to(Graphite.node("Consultant").as("m"))
+            .update()
+            .set("m", "active", true)
+            .build();
+
+    assertEquals(true, query.assignments().values().iterator().next());
   }
 }
