@@ -143,6 +143,8 @@ Graphite exists to restore that balance.
 * `graphite-core`: core graph API primitives
 * `graphite-cypher`: Cypher-oriented query building utilities
 * `graphite-metadata`: metadata and mapping models
+* `graphite-kotlin`: Kotlin receiver DSL, reified helpers, and `KProperty1` entity references
+* `graphite-scala`: Scala 3 builders, operators, `ClassTag` entities, and collection conversions
 * `graphite-neo4j`: Neo4j Java Driver execution and transaction adapter
 * `graphite-spring`: Spring integration layer
 * `graphite-spring-boot-starter`: starter entrypoint module
@@ -323,6 +325,64 @@ Use `Graphite.subquery(imports...)` to validate imported scope before attaching 
 `subquery(...)`. `Graphite.union(...)` and `unionAll(...)` require every branch to return the same
 explicitly aliased columns. Procedure calls default to write routing; use `callReadOnly(...)` only
 when the procedure's read-only behavior is known.
+
+## Kotlin and Scala Adapters
+
+The optional language modules build the same Java AST and work with the same renderer and clients.
+They add language-native construction without introducing a separate runtime.
+
+Kotlin applications can use receiver builders, reified values, infix predicates, and refactor-safe
+property references from data classes:
+
+```kotlin
+import io.github.riken127.graphite.kotlin.*
+import io.github.riken127.graphite.metadata.GraphNode
+import io.github.riken127.graphite.metadata.GraphProperty
+
+@GraphNode("Consultant")
+data class Consultant(
+    @field:GraphProperty("display_name") val name: String,
+    val rating: Int,
+)
+
+val consultant = entity<Consultant>("c")
+val rating = consultant.property(Consultant::rating)
+val name = consultant.property(Consultant::name)
+
+val query = query {
+    match(path(consultant.node()))
+    where(rating greaterThan 4)
+    set(name setTo "Ada")
+    returning(name aliasedAs "name")
+}
+```
+
+Add `io.github.riken127:graphite-kotlin`; Kotlin `2.2.21` is the adapter's pinned build baseline.
+
+Scala 3 applications get function builders, `ClassTag`-checked entity properties, symbolic
+predicates, and automatic Scala-to-Java collection conversion:
+
+```scala
+import io.github.riken127.graphite.metadata.GraphNode
+import io.github.riken127.graphite.scala.GraphiteScala.*
+
+@GraphNode("Consultant")
+final case class Consultant(name: String, rating: Int)
+
+val consultant = entity[Consultant]("c")
+val rating = consultant.property[Int]("rating")
+val name = consultant.property[String]("name")
+
+val query = GraphiteScala.query { builder =>
+  builder.`match`(path(consultant.node))
+  builder.where(rating > 4)
+  builder.set(name setTo "Ada")
+  builder.returning(name aliasedAs "name")
+}
+```
+
+Add `io.github.riken127:graphite-scala`; Scala `3.3.6` is the adapter's pinned build baseline. Both
+adapter artifacts are managed by `graphite-bom`.
 
 ## Neo4j Execution
 

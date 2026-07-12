@@ -9,9 +9,9 @@ This allows the project to evolve without turning into a framework monolith.
 ## Layered Model
 
 ```text
-Application Code
+Java / Kotlin / Scala Application Code
       ↓
-Graphite DSL API
+Optional Language Adapter → Graphite DSL API
       ↓
 Query Model / AST
       ↓
@@ -81,6 +81,19 @@ Responsibilities:
 * Managed retryable and explicit transactions
 * Driver-to-Graphite exception translation
 * Node and relationship record mappers
+
+## graphite-kotlin and graphite-scala
+
+Thin, optional language adapters over `graphite-core` and `graphite-metadata`.
+
+Responsibilities:
+
+* Kotlin receiver builders, reified helpers, and typed `KProperty1` references
+* Scala 3 function builders, operators, `ClassTag` checks, and collection conversion
+* Native class label/property annotation lookup
+* Returning the shared immutable Java AST without duplicating rendering or execution
+
+Neither adapter is a dependency of core, Cypher rendering, Neo4j execution, or Spring integration.
 
 ## graphite-spring
 

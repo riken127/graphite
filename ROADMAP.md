@@ -134,6 +134,7 @@ Recently completed:
 * CI-enforced container and real Spring transaction tests
 * Reusable test helpers and a runnable runtime example
 * General write clauses, searched CASE/list/map expressions, scoped subqueries, unions, and calls
+* Optional Kotlin and Scala 3 DSL adapters with native typed entity references
 
 Deliverables:
 
