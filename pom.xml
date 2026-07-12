@@ -15,6 +15,7 @@
     <module>graphite-core</module>
     <module>graphite-cypher</module>
     <module>graphite-metadata</module>
+    <module>graphite-metamodel-processor</module>
     <module>graphite-kotlin</module>
     <module>graphite-scala</module>
     <module>graphite-neo4j</module>
@@ -65,6 +66,11 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>graphite-metadata</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>graphite-metamodel-processor</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
