@@ -6,7 +6,7 @@ Build the most natural way to use graph databases from Java.
 
 ## Phase 0 — Foundation
 
-Status: Current
+Status: Complete
 
 Goals:
 
@@ -24,6 +24,8 @@ Deliverables:
 * Core packages
 
 ## Phase 1 — Core Query Model
+
+Status: In progress
 
 Goals:
 
@@ -45,6 +47,8 @@ Deliverables:
 
 ## Phase 2 — Fluent DSL
 
+Status: In progress
+
 Goals:
 
 * Human-readable Java query API
@@ -62,6 +66,8 @@ Deliverables:
 
 ## Phase 3 — Cypher Renderer
 
+Status: In progress
+
 Goals:
 
 * Convert AST into valid Cypher
@@ -78,6 +84,8 @@ Deliverables:
 
 ## Phase 4 — Spring Integration
 
+Status: Pending
+
 Goals:
 
 * Execution support in Spring apps
@@ -91,6 +99,8 @@ Deliverables:
 * Boot starter
 
 ## Phase 5 — Production Readiness
+
+Status: Pending
 
 Goals:
 
@@ -107,6 +117,8 @@ Deliverables:
 * Troubleshooting docs
 
 ## Phase 6 — Advanced Features
+
+Status: Pending
 
 Goals:
 

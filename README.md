@@ -193,7 +193,24 @@ MatchQuery query =
         .limit(25)
         .build();
 
-RenderedQuery rendered = new MatchQueryRenderer().render(query);
+RenderedQuery rendered = new CypherRenderer().render(query);
+```
+
+### Relationship Traversal
+
+```java
+MatchQuery referrals =
+    Graphite.match(Graphite.node("Consultant").as("c"))
+        .out("REFERRED_BY")
+        .as("ref")
+        .hops(1, 3)
+        .to(Graphite.node("Consultant").as("manager"))
+        .where(
+            Graphite.property("c", "active")
+                .eq(true)
+                .and(Graphite.property("manager", "name").startsWith("J")))
+        .select("manager", "ref")
+        .build();
 ```
 
 ## MVP Operations
@@ -213,3 +230,56 @@ MergeQuery mergeQuery =
         .onMatchSet("lastSeen", "2026-04-20")
         .build();
 ```
+
+Write-only create and merge operations can call `withoutReturn()` to avoid materializing results.
+
+### Updates and Deletes
+
+```java
+UpdateQuery updateQuery =
+    Graphite.match(Graphite.node("Consultant").as("c"))
+        .where(Graphite.property("c", "id").eq("123"))
+        .update()
+        .set("name", "Julia")
+        .remove("legacyName")
+        .returning("c")
+        .build();
+
+DeleteQuery deleteQuery =
+    Graphite.match(Graphite.node("Consultant").as("c"))
+        .where(Graphite.property("c", "id").eq("123"))
+        .detachDelete()
+        .build();
+```
+
+### Raw Cypher Escape Hatch
+
+Raw Cypher is explicit and keeps trusted query text separate from values:
+
+```java
+RawCypherQuery raw =
+    new RawCypherQuery(
+        "MATCH (n) WHERE n.id = $id RETURN n",
+        Map.of("id", "123"));
+
+RenderedQuery rendered = new CypherRenderer().render(raw);
+```
+
+Never concatenate untrusted values into raw Cypher. Use parameters for all values.
+
+## Current Scope
+
+The implemented production foundation currently includes:
+
+* immutable single-path node and relationship patterns
+* outgoing, incoming, undirected, and variable-length traversals
+* grouped `AND`, `OR`, and `NOT` predicates
+* parameterized matching, creation, merging, updating, and deletion
+* optional write returns
+* a unified renderer with a public query-renderer extension point
+* an explicit raw-Cypher escape hatch
+
+The `graphite-spring`, `graphite-spring-boot-starter`, `graphite-metadata`, and `graphite-test`
+modules remain placeholders. They must not yet be treated as database execution or object-mapping
+integrations. A real Neo4j execution adapter, transaction participation, result mapping, Spring Boot
+auto-configuration, and Testcontainers coverage are the next production milestone.

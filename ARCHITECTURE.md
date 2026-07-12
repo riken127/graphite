@@ -48,7 +48,7 @@ Responsibilities:
 
 * Cypher rendering
 * Parameter binding
-* Alias generation
+* Alias validation and pattern scope
 * MERGE / MATCH rendering strategies
 
 ## graphite-metadata
@@ -57,16 +57,20 @@ Maps Java types into graph metadata.
 
 Responsibilities:
 
-* Labels
-* Relationship types
-* IDs
-* Property naming
-* Reflection descriptors
-* Cached metadata lookup
+Status: placeholder. The current module contains only the initial `NodeMetadata` value type.
+
+Planned responsibilities:
+
+* labels and relationship types
+* IDs and property naming
+* reflection descriptors
+* cached metadata lookup
 
 ## graphite-spring
 
 Spring integration layer.
+
+Status: placeholder. No Spring or Neo4j dependency is currently included.
 
 Responsibilities:
 
@@ -79,6 +83,8 @@ Responsibilities:
 ## graphite-spring-boot-starter
 
 Auto-configuration and zero-friction setup.
+
+Status: placeholder. Auto-configuration has not been implemented yet.
 
 ## Internal Query Flow
 
@@ -97,8 +103,8 @@ Becomes:
 2. Immutable AST model
 3. Validation pass
 4. Cypher render output
-5. Execution via adapter
-6. Result mapping
+5. Execution via adapter (planned)
+6. Result mapping (planned)
 
 ## AST Philosophy
 
@@ -135,6 +141,15 @@ Records and immutable objects reduce accidental complexity.
 Query parts should combine cleanly.
 Avoid deep class hierarchies.
 
+## Renderer extension boundary
+
+`CypherRenderer` is the public rendering facade. Built-in query models are handled by dedicated
+`QueryRenderer<Q>` implementations. Additional query models can provide another renderer without
+adding dispatch branches to the facade.
+
+Path construction and MATCH-based writes share `PathPattern`, predicate validation, and match-clause
+rendering so new operations do not each recreate graph traversal semantics.
+
 ## Future Extensions
 
 Planned extension points:
@@ -155,6 +170,8 @@ Core and renderer logic.
 ## Integration Tests
 
 Neo4j Testcontainers.
+
+Status: planned; current tests cover AST validation and rendering contracts only.
 
 ## Contract Tests
 
