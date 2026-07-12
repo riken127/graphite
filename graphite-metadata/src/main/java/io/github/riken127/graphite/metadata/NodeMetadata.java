@@ -2,6 +2,7 @@ package io.github.riken127.graphite.metadata;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Metadata about a graph node mapping. */
 public record NodeMetadata(Class<?> javaType, String label, List<PropertyMetadata> properties) {
@@ -27,7 +28,13 @@ public record NodeMetadata(Class<?> javaType, String label, List<PropertyMetadat
   }
 
   /** Returns the optional application identity property. */
-  public java.util.Optional<PropertyMetadata> idProperty() {
+  public Optional<PropertyMetadata> idProperty() {
     return properties.stream().filter(PropertyMetadata::id).findFirst();
+  }
+
+  /** Finds metadata by its Java record-component name. */
+  public Optional<PropertyMetadata> property(String javaName) {
+    Objects.requireNonNull(javaName, "javaName must not be null");
+    return properties.stream().filter(property -> property.javaName().equals(javaName)).findFirst();
   }
 }

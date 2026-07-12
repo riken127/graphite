@@ -56,7 +56,13 @@ public final class ReflectionNodeMetadataRegistry implements NodeMetadataRegistr
       }
       foundId |= id;
       properties.add(
-          new PropertyMetadata(component.getName(), graphName, component.getType(), id, index));
+          new PropertyMetadata(
+              component.getName(),
+              graphName,
+              component.getType(),
+              component.getGenericType(),
+              id,
+              index));
     }
 
     return new NodeMetadata(javaType, label, properties);

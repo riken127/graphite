@@ -2,10 +2,19 @@ package io.github.riken127.graphite.metadata;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -14,12 +23,20 @@ import java.util.concurrent.ConcurrentMap;
 public final class RecordEntityMapper {
 
   private final NodeMetadataRegistry metadataRegistry;
+  private final GraphValueConverters converters;
   private final ConcurrentMap<Class<?>, Constructor<?>> constructorCache =
       new ConcurrentHashMap<>();
 
   public RecordEntityMapper(NodeMetadataRegistry metadataRegistry) {
+    this(metadataRegistry, GraphValueConverters.empty());
+  }
+
+  /** Creates a mapper with application-specific value converters. */
+  public RecordEntityMapper(
+      NodeMetadataRegistry metadataRegistry, GraphValueConverters converters) {
     this.metadataRegistry =
         Objects.requireNonNull(metadataRegistry, "metadataRegistry must not be null");
+    this.converters = Objects.requireNonNull(converters, "converters must not be null");
   }
 
   /** Maps graph properties to an instance of the requested Java record type. */
@@ -36,7 +53,7 @@ public final class RecordEntityMapper {
             "missing non-null property '" + property.graphName() + "' for " + targetType.getName());
       }
       arguments[property.constructorIndex()] =
-          coerce(value, property.javaType(), property.graphName());
+          convert(value, property.genericType(), property.javaType(), property.graphName());
     }
 
     try {
@@ -68,9 +85,30 @@ public final class RecordEntityMapper {
         });
   }
 
-  private static Object coerce(Object value, Class<?> targetType, String propertyName) {
-    if (value == null || boxed(targetType).isInstance(value)) {
+  private Object convert(Object value, Type genericType, Class<?> targetType, String propertyName) {
+    if (targetType == Optional.class) {
+      Type elementType = typeArgument(genericType, 0, propertyName);
+      if (value == null) {
+        return Optional.empty();
+      }
+      return Optional.ofNullable(
+          convert(value, elementType, rawType(elementType, propertyName), propertyName));
+    }
+    if (value == null) {
+      return null;
+    }
+    if (Collection.class.isAssignableFrom(targetType)) {
+      return convertCollection(value, genericType, targetType, propertyName);
+    }
+    Optional<Object> custom = converters.convert(value, genericType);
+    if (custom.isPresent()) {
+      return custom.get();
+    }
+    if (boxed(targetType).isInstance(value)) {
       return value;
+    }
+    if (targetType.isRecord() && value instanceof Map<?, ?> nested) {
+      return map(targetType, stringKeyMap(nested, propertyName));
     }
     Class<?> boxedType = boxed(targetType);
     if (value instanceof Number number && Number.class.isAssignableFrom(boxedType)) {
@@ -82,6 +120,9 @@ public final class RecordEntityMapper {
     if (boxedType.isEnum() && value instanceof String text) {
       return enumValue(boxedType, text, propertyName);
     }
+    if (boxedType == Character.class && value instanceof String text && text.length() == 1) {
+      return text.charAt(0);
+    }
     throw new MetadataMappingException(
         "cannot map property '"
             + propertyName
@@ -89,6 +130,57 @@ public final class RecordEntityMapper {
             + value.getClass().getName()
             + " to "
             + targetType.getName());
+  }
+
+  private Object convertCollection(
+      Object value, Type genericType, Class<?> targetType, String propertyName) {
+    if (!(value instanceof Iterable<?> iterable)) {
+      throw new MetadataMappingException(
+          "property '" + propertyName + "' must be iterable for " + targetType.getName());
+    }
+    Type elementType = typeArgument(genericType, 0, propertyName);
+    Class<?> elementClass = rawType(elementType, propertyName);
+    Collection<Object> converted =
+        Set.class.isAssignableFrom(targetType) ? new LinkedHashSet<>() : new ArrayList<>();
+    for (Object element : iterable) {
+      converted.add(convert(element, elementType, elementClass, propertyName));
+    }
+    return Set.class.isAssignableFrom(targetType)
+        ? java.util.Collections.unmodifiableSet((Set<?>) converted)
+        : List.copyOf(converted);
+  }
+
+  private static Type typeArgument(Type type, int index, String propertyName) {
+    if (type instanceof ParameterizedType parameterized
+        && parameterized.getActualTypeArguments().length > index) {
+      return parameterized.getActualTypeArguments()[index];
+    }
+    throw new MetadataMappingException(
+        "property '" + propertyName + "' requires concrete generic type information");
+  }
+
+  private static Class<?> rawType(Type type, String propertyName) {
+    if (type instanceof Class<?> javaType) {
+      return javaType;
+    }
+    if (type instanceof ParameterizedType parameterized
+        && parameterized.getRawType() instanceof Class<?> javaType) {
+      return javaType;
+    }
+    throw new MetadataMappingException(
+        "unsupported generic type for property '" + propertyName + "': " + type);
+  }
+
+  private static Map<String, Object> stringKeyMap(Map<?, ?> source, String propertyName) {
+    Map<String, Object> result = new LinkedHashMap<>();
+    for (Map.Entry<?, ?> entry : source.entrySet()) {
+      if (!(entry.getKey() instanceof String key)) {
+        throw new MetadataMappingException(
+            "nested property '" + propertyName + "' contains a non-string key");
+      }
+      result.put(key, entry.getValue());
+    }
+    return result;
   }
 
   private static Object coerceNumber(Number number, Class<?> targetType, String propertyName) {

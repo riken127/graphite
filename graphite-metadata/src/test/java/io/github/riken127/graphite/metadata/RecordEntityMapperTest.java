@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.lang.reflect.Type;
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class RecordEntityMapperTest {
@@ -49,11 +53,67 @@ class RecordEntityMapperTest {
                 Consultant.class, Map.of("id", "42", "display_name", "Julia", "status", "ACTIVE")));
   }
 
+  @Test
+  void createsMetadataBackedTypedEntityReferences() {
+    GraphEntity<Consultant> consultant =
+        new GraphEntityFactory(registry).entity(Consultant.class, "c");
+
+    assertEquals("Consultant", consultant.node().label());
+    assertEquals("display_name", consultant.property("name", String.class).property());
+    assertThrows(MetadataException.class, () -> consultant.property("rating", String.class));
+  }
+
+  @Test
+  void mapsNestedRecordsGenericCollectionsOptionalsAndCustomValues() {
+    GraphValueConverters converters =
+        GraphValueConverters.builder()
+            .add(
+                new GraphValueConverter() {
+                  @Override
+                  public boolean supports(Object source, Type targetType) {
+                    return source instanceof String && targetType == URI.class;
+                  }
+
+                  @Override
+                  public Object convert(Object source, Type targetType) {
+                    return URI.create((String) source);
+                  }
+                })
+            .build();
+    RecordEntityMapper richMapper = new RecordEntityMapper(registry, converters);
+
+    Profile profile =
+        richMapper.map(
+            Profile.class,
+            Map.of(
+                "nickname",
+                "jules",
+                "scores",
+                List.of(1L, 2L),
+                "address",
+                Map.of("city", "Lisbon"),
+                "website",
+                "https://example.com"));
+
+    assertEquals(
+        new Profile(
+            Optional.of("jules"),
+            List.of(1, 2),
+            new Address("Lisbon"),
+            URI.create("https://example.com")),
+        profile);
+  }
+
   @GraphNode("Consultant")
   private record Consultant(
       @GraphId String id, @GraphProperty("display_name") String name, int rating, Status status) {}
 
   private record MultipleIds(@GraphId String first, @GraphId String second) {}
+
+  private record Profile(
+      Optional<String> nickname, List<Integer> scores, Address address, URI website) {}
+
+  private record Address(String city) {}
 
   private static final class NonRecordType {}
 
