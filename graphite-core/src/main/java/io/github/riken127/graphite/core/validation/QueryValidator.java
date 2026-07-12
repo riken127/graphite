@@ -7,18 +7,30 @@ import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.MergeQuery;
 import io.github.riken127.graphite.core.model.PropertyTarget;
 import io.github.riken127.graphite.core.model.Sort;
+import io.github.riken127.graphite.core.model.UnionQuery;
 import io.github.riken127.graphite.core.model.UpdateQuery;
+import io.github.riken127.graphite.core.model.clause.CallClause;
 import io.github.riken127.graphite.core.model.clause.Clause;
+import io.github.riken127.graphite.core.model.clause.CreateClause;
+import io.github.riken127.graphite.core.model.clause.DeleteClause;
 import io.github.riken127.graphite.core.model.clause.LimitClause;
 import io.github.riken127.graphite.core.model.clause.MatchClause;
+import io.github.riken127.graphite.core.model.clause.MergeClause;
 import io.github.riken127.graphite.core.model.clause.OrderByClause;
+import io.github.riken127.graphite.core.model.clause.RemoveClause;
 import io.github.riken127.graphite.core.model.clause.ReturnClause;
+import io.github.riken127.graphite.core.model.clause.SetAssignment;
+import io.github.riken127.graphite.core.model.clause.SetClause;
 import io.github.riken127.graphite.core.model.clause.SkipClause;
+import io.github.riken127.graphite.core.model.clause.SubqueryClause;
 import io.github.riken127.graphite.core.model.clause.UnwindClause;
 import io.github.riken127.graphite.core.model.clause.WhereClause;
 import io.github.riken127.graphite.core.model.clause.WithClause;
+import io.github.riken127.graphite.core.model.expression.CaseExpression;
 import io.github.riken127.graphite.core.model.expression.Expression;
 import io.github.riken127.graphite.core.model.expression.FunctionExpression;
+import io.github.riken127.graphite.core.model.expression.ListExpression;
+import io.github.riken127.graphite.core.model.expression.MapExpression;
 import io.github.riken127.graphite.core.model.expression.Projection;
 import io.github.riken127.graphite.core.model.expression.PropertyExpression;
 import io.github.riken127.graphite.core.model.expression.VariableExpression;
@@ -33,6 +45,7 @@ import io.github.riken127.graphite.core.model.predicate.NotPredicate;
 import io.github.riken127.graphite.core.model.predicate.NullPredicate;
 import io.github.riken127.graphite.core.model.predicate.Predicate;
 import io.github.riken127.graphite.core.model.predicate.TextPredicate;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -113,10 +126,47 @@ public final class QueryValidator {
 
   /** Validates a general ordered clause query. */
   public static void validate(ClauseQuery query) {
+    validate(query, List.of());
+  }
+
+  /** Validates a clause query with variables imported by an enclosing subquery. */
+  public static void validate(ClauseQuery query, Collection<String> initialScope) {
     Objects.requireNonNull(query, "query must not be null");
-    Set<String> scope = new LinkedHashSet<>();
+    Objects.requireNonNull(initialScope, "initialScope must not be null");
+    Set<String> imported = new LinkedHashSet<>();
+    for (String alias : initialScope) {
+      if (!imported.add(AstValidator.requireAlias(alias))) {
+        throw new IllegalArgumentException("duplicate imported alias: " + alias);
+      }
+    }
+    validateClauseQuery(query, imported);
+  }
+
+  /** Validates compatible UNION branches and their output columns. */
+  public static void validate(UnionQuery query) {
+    Objects.requireNonNull(query, "query must not be null");
+    List<String> expected = null;
+    for (ClauseQuery branch : query.branches()) {
+      ClauseValidation validation = validateClauseQuery(branch, Set.of());
+      if (!validation.returned()) {
+        throw new IllegalArgumentException("every UNION branch must contain RETURN");
+      }
+      List<String> outputs = unionOutputs(branch);
+      if (expected == null) {
+        expected = outputs;
+      } else if (!expected.equals(outputs)) {
+        throw new IllegalArgumentException("UNION branches must return identical aliased columns");
+      }
+    }
+  }
+
+  private static ClauseValidation validateClauseQuery(ClauseQuery query, Set<String> initialScope) {
+    Set<String> scope = new LinkedHashSet<>(initialScope);
     boolean returned = false;
     boolean projected = false;
+    boolean writes = false;
+    boolean executable = false;
+    Set<String> outputs = Set.of();
 
     for (Clause clause : query.clauses()) {
       if (returned
@@ -130,6 +180,65 @@ public final class QueryValidator {
           scope.addAll(pattern.aliases());
         }
         projected = false;
+      } else if (clause instanceof CreateClause createClause) {
+        for (var pattern : createClause.patterns()) {
+          validateWritablePattern(pattern);
+          scope.addAll(pattern.aliases());
+        }
+        projected = false;
+        writes = true;
+        executable = true;
+      } else if (clause instanceof MergeClause mergeClause) {
+        validateWritablePattern(mergeClause.pattern());
+        scope.addAll(mergeClause.pattern().aliases());
+        validateAssignments(mergeClause.onCreateAssignments(), scope);
+        validateAssignments(mergeClause.onMatchAssignments(), scope);
+        projected = false;
+        writes = true;
+        executable = true;
+      } else if (clause instanceof SetClause setClause) {
+        requireScope(scope, "SET");
+        validateAssignments(setClause.assignments(), scope);
+        writes = true;
+        executable = true;
+      } else if (clause instanceof RemoveClause removeClause) {
+        requireScope(scope, "REMOVE");
+        for (Expression<?> property : removeClause.properties()) {
+          validatePropertyTarget(property, scope);
+        }
+        writes = true;
+        executable = true;
+      } else if (clause instanceof DeleteClause deleteClause) {
+        requireScope(scope, "DELETE");
+        for (String alias : deleteClause.aliases()) {
+          requireAlias(alias, scope, "delete");
+        }
+        writes = true;
+        executable = true;
+      } else if (clause instanceof CallClause callClause) {
+        for (Expression<?> argument : callClause.arguments()) {
+          validateExpression(argument, scope);
+        }
+        scope.addAll(callClause.yields());
+        projected = false;
+        writes |= !callClause.readOnly();
+        executable = true;
+      } else if (clause instanceof SubqueryClause subqueryClause) {
+        for (String alias : subqueryClause.imports()) {
+          requireAlias(alias, scope, "subquery import");
+        }
+        ClauseValidation nested =
+            validateClauseQuery(
+                subqueryClause.query(), new LinkedHashSet<>(subqueryClause.imports()));
+        for (String alias : subqueryClause.exports()) {
+          if (!nested.outputs().contains(alias)) {
+            throw new IllegalArgumentException("subquery export is not returned: " + alias);
+          }
+        }
+        scope.addAll(subqueryClause.exports());
+        projected = false;
+        writes |= nested.writes();
+        executable = true;
       } else if (clause instanceof WhereClause whereClause) {
         requireScope(scope, "WHERE");
         validatePredicate(whereClause.predicate(), scope);
@@ -146,8 +255,11 @@ public final class QueryValidator {
         requireScope(scope, "RETURN");
         validateProjections(returnClause.projections(), scope);
         for (Projection projection : returnClause.projections()) {
-          projection.outputAlias().ifPresent(scope::add);
+          if (projection.alias() != null) {
+            scope.add(projection.alias());
+          }
         }
+        outputs = returnedScope(returnClause.projections());
         returned = true;
         projected = true;
       } else if (clause instanceof OrderByClause orderByClause) {
@@ -164,9 +276,36 @@ public final class QueryValidator {
       }
     }
 
-    if (!returned) {
-      throw new IllegalArgumentException("clause query must contain RETURN");
+    if (!returned && !writes && !executable) {
+      throw new IllegalArgumentException("clause query must return values or perform an operation");
     }
+    return new ClauseValidation(Set.copyOf(scope), outputs, writes, returned);
+  }
+
+  private static void validateAssignments(List<SetAssignment<?>> assignments, Set<String> aliases) {
+    for (SetAssignment<?> assignment : assignments) {
+      validatePropertyTarget(assignment.target(), aliases);
+      validateExpression(assignment.value(), aliases);
+    }
+  }
+
+  private static void validateWritablePattern(
+      io.github.riken127.graphite.core.model.PathPattern pattern) {
+    for (var traversal : pattern.traversals()) {
+      if (traversal.relationship().variableLength()) {
+        throw new IllegalArgumentException(
+            "CREATE and MERGE do not support variable-length relationships");
+      }
+    }
+  }
+
+  private static void validatePropertyTarget(Expression<?> expression, Set<String> aliases) {
+    if (!(expression instanceof PropertyExpression<?>)) {
+      if (!(expression instanceof io.github.riken127.graphite.core.dsl.TypedPropertyRef<?>)) {
+        throw new IllegalArgumentException("write target must be a property expression");
+      }
+    }
+    validateExpression(expression, aliases);
   }
 
   private static void validatePredicates(List<Predicate> predicates, Set<String> aliases) {
@@ -228,8 +367,55 @@ public final class QueryValidator {
       requireAlias(typed.alias(), aliases, "expression");
     } else if (expression instanceof FunctionExpression<?> function) {
       function.arguments().forEach(argument -> validateExpression(argument, aliases));
+    } else if (expression instanceof ListExpression<?> list) {
+      list.elements().forEach(element -> validateExpression(element, aliases));
+    } else if (expression instanceof MapExpression map) {
+      map.entries().values().forEach(value -> validateExpression(value, aliases));
+    } else if (expression instanceof CaseExpression<?> caseExpression) {
+      caseExpression
+          .alternatives()
+          .forEach(
+              alternative -> {
+                validatePredicate(alternative.when(), aliases);
+                validateExpression(alternative.then(), aliases);
+              });
+      validateExpression(caseExpression.otherwise(), aliases);
     }
   }
+
+  private static Set<String> returnedScope(List<Projection> projections) {
+    Set<String> result = new LinkedHashSet<>();
+    for (Projection projection : projections) {
+      if (projection.alias() != null) {
+        result.add(projection.alias());
+      } else if (projection.expression() instanceof VariableExpression<?> variable) {
+        result.add(variable.alias());
+      }
+    }
+    return Set.copyOf(result);
+  }
+
+  private static List<String> unionOutputs(ClauseQuery query) {
+    ReturnClause returning =
+        query.clauses().stream()
+            .filter(ReturnClause.class::isInstance)
+            .map(ReturnClause.class::cast)
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("UNION branch must contain RETURN"));
+    return returning.projections().stream()
+        .map(
+            projection -> {
+              if (projection.alias() == null) {
+                throw new IllegalArgumentException(
+                    "UNION projections must declare explicit output aliases");
+              }
+              return projection.alias();
+            })
+        .toList();
+  }
+
+  private record ClauseValidation(
+      Set<String> scope, Set<String> outputs, boolean writes, boolean returned) {}
 
   private static Set<String> projectionScope(List<Projection> projections) {
     Set<String> result = new LinkedHashSet<>();

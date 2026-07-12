@@ -1,8 +1,12 @@
 package io.github.riken127.graphite.core.dsl;
 
+import io.github.riken127.graphite.core.model.ClauseQuery;
 import io.github.riken127.graphite.core.model.NodePattern;
 import io.github.riken127.graphite.core.model.Sort;
 import io.github.riken127.graphite.core.model.SortDirection;
+import io.github.riken127.graphite.core.model.UnionQuery;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /** Entry point for creating Graphite DSL objects. */
@@ -13,6 +17,33 @@ public final class Graphite {
   /** Starts a general query composed from ordered typed clauses. */
   public static ClauseQueryBuilder query() {
     return new ClauseQueryBuilder();
+  }
+
+  /** Starts a subquery builder with explicit imported variables in scope. */
+  public static ClauseQueryBuilder subquery(String... imports) {
+    Objects.requireNonNull(imports, "imports must not be null");
+    return new ClauseQueryBuilder(List.of(imports));
+  }
+
+  /** Joins compatible query branches with UNION. */
+  public static UnionQuery union(ClauseQuery first, ClauseQuery... remaining) {
+    return buildUnion(false, first, remaining);
+  }
+
+  /** Joins compatible query branches with UNION ALL. */
+  public static UnionQuery unionAll(ClauseQuery first, ClauseQuery... remaining) {
+    return buildUnion(true, first, remaining);
+  }
+
+  private static UnionQuery buildUnion(boolean all, ClauseQuery first, ClauseQuery... remaining) {
+    Objects.requireNonNull(first, "first must not be null");
+    Objects.requireNonNull(remaining, "remaining must not be null");
+    List<ClauseQuery> branches = new ArrayList<>();
+    branches.add(first);
+    branches.addAll(List.of(remaining));
+    UnionQuery query = new UnionQuery(branches, all);
+    io.github.riken127.graphite.core.validation.QueryValidator.validate(query);
+    return query;
   }
 
   /** Starts a reusable path pattern. */
