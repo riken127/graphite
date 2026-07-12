@@ -5,12 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.riken127.graphite.core.dsl.Expressions;
 import io.github.riken127.graphite.core.dsl.Graphite;
+import io.github.riken127.graphite.core.model.ClauseQuery;
 import io.github.riken127.graphite.core.model.CreateQuery;
 import io.github.riken127.graphite.core.model.DeleteQuery;
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.MergeQuery;
 import io.github.riken127.graphite.core.model.UpdateQuery;
+import io.github.riken127.graphite.core.model.expression.Projection;
 import io.github.riken127.graphite.cypher.model.RawCypherQuery;
 import io.github.riken127.graphite.metadata.GraphId;
 import io.github.riken127.graphite.metadata.GraphNode;
@@ -324,6 +327,42 @@ class GraphiteClientIntegrationTest {
 
     schema.dropIndex("consultant_name_index");
     schema.dropConstraint("consultant_id_unique");
+  }
+
+  @Test
+  void executesStructuredWritesSubqueriesAndUnions() {
+    ClauseQuery create =
+        Graphite.query()
+            .create(Graphite.path(Graphite.node("Person").as("p")).build())
+            .set(
+                Expressions.set(
+                    Graphite.property("p", "name", String.class),
+                    Expressions.value("Ada", String.class)))
+            .build();
+
+    assertEquals(1, client.execute(create).summary().counters().nodesCreated());
+
+    ClauseQuery nested =
+        Graphite.subquery("p")
+            .returning(Projection.as(Graphite.property("p", "name", String.class), "entityName"))
+            .build();
+    ClauseQuery people =
+        Graphite.query()
+            .match(Graphite.path(Graphite.node("Person").as("p")).build())
+            .subquery(nested, List.of("p"), "entityName")
+            .returning(Projection.as(Expressions.variable("entityName", String.class), "name"))
+            .build();
+    ClauseQuery companies =
+        Graphite.query()
+            .match(Graphite.path(Graphite.node("Company").as("c")).build())
+            .returning(Projection.as(Graphite.property("c", "name", String.class), "name"))
+            .build();
+
+    assertEquals(
+        List.of("Ada"),
+        client
+            .execute(Graphite.unionAll(people, companies), row -> row.value("name").asString())
+            .records());
   }
 
   private static CreateQuery createConsultant(String id) {

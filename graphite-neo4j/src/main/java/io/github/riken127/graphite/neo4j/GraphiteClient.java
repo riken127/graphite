@@ -3,6 +3,15 @@ package io.github.riken127.graphite.neo4j;
 import io.github.riken127.graphite.core.model.ClauseQuery;
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.Query;
+import io.github.riken127.graphite.core.model.UnionQuery;
+import io.github.riken127.graphite.core.model.clause.CallClause;
+import io.github.riken127.graphite.core.model.clause.Clause;
+import io.github.riken127.graphite.core.model.clause.CreateClause;
+import io.github.riken127.graphite.core.model.clause.DeleteClause;
+import io.github.riken127.graphite.core.model.clause.MergeClause;
+import io.github.riken127.graphite.core.model.clause.RemoveClause;
+import io.github.riken127.graphite.core.model.clause.SetClause;
+import io.github.riken127.graphite.core.model.clause.SubqueryClause;
 import io.github.riken127.graphite.cypher.model.RawCypherQuery;
 import io.github.riken127.graphite.cypher.model.RenderedQuery;
 import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
@@ -261,15 +270,40 @@ public final class GraphiteClient implements GraphiteOperations {
     return new DriverQueryExecutor(transaction, renderer, observer);
   }
 
-  private static QueryAccessMode resolveAccessMode(Query query, QueryOptions options) {
+  static QueryAccessMode resolveAccessMode(Query query, QueryOptions options) {
     QueryAccessMode requested =
         Objects.requireNonNull(options, "options must not be null").accessMode();
     if (requested != QueryAccessMode.AUTO) {
       return requested;
     }
-    return query instanceof MatchQuery || query instanceof ClauseQuery
-        ? QueryAccessMode.READ
-        : QueryAccessMode.WRITE;
+    return isReadOnly(query) ? QueryAccessMode.READ : QueryAccessMode.WRITE;
+  }
+
+  private static boolean isReadOnly(Query query) {
+    if (query instanceof MatchQuery) {
+      return true;
+    }
+    if (query instanceof ClauseQuery clauseQuery) {
+      return clauseQuery.clauses().stream().allMatch(GraphiteClient::isReadOnly);
+    }
+    if (query instanceof UnionQuery unionQuery) {
+      return unionQuery.branches().stream().allMatch(GraphiteClient::isReadOnly);
+    }
+    return false;
+  }
+
+  private static boolean isReadOnly(Clause clause) {
+    if (clause instanceof CallClause callClause) {
+      return callClause.readOnly();
+    }
+    if (clause instanceof SubqueryClause subqueryClause) {
+      return isReadOnly(subqueryClause.query());
+    }
+    return !(clause instanceof CreateClause
+        || clause instanceof MergeClause
+        || clause instanceof SetClause
+        || clause instanceof RemoveClause
+        || clause instanceof DeleteClause);
   }
 
   private static QueryAccessMode resolveRawAccessMode(QueryOptions options) {
