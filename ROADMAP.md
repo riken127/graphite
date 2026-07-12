@@ -84,7 +84,7 @@ Deliverables:
 
 ## Phase 4 — Spring Integration
 
-Status: Pending
+Status: Complete for synchronous execution
 
 Goals:
 
@@ -94,13 +94,13 @@ Goals:
 
 Deliverables:
 
-* GraphiteTemplate
-* Spring adapter
-* Boot starter
+* GraphiteClient and GraphiteSpringTemplate
+* Spring transaction manager
+* Boot auto-configuration starter
 
 ## Phase 5 — Production Readiness
 
-Status: Pending
+Status: In progress
 
 Goals:
 
@@ -109,6 +109,21 @@ Goals:
 * Error ergonomics
 * Migration guides
 * Real examples
+
+Completed foundations:
+
+* Stable runtime result and exception contracts
+* Query options, causal bookmarks, and transaction APIs
+* Cached Java-record mapping
+* Neo4j Testcontainers integration suite
+
+Remaining work:
+
+* General clause composition and a broader Cypher AST
+* Metrics and tracing hooks
+* Benchmarks and compatibility matrix
+* Schema and migration tooling
+* Richer test fixtures and runnable application examples
 
 Deliverables:
 

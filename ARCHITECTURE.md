@@ -17,9 +17,11 @@ Query Model / AST
       ↓
 Renderer (Cypher)
       ↓
-Execution Adapter
+graphite-neo4j Execution Adapter
       ↓
-Neo4j Driver / Spring / Other Integrations
+Neo4j Java Driver
+      ↑
+Spring / Spring Boot Integrations
 ```
 
 ## Core Modules
@@ -57,34 +59,45 @@ Maps Java types into graph metadata.
 
 Responsibilities:
 
-Status: placeholder. The current module contains only the initial `NodeMetadata` value type.
+* node labels, IDs, and property names
+* validated reflection descriptors for Java records
+* thread-safe cached metadata lookup
+* record construction and exact scalar coercion
 
-Planned responsibilities:
+## graphite-neo4j
 
-* labels and relationship types
-* IDs and property naming
-* reflection descriptors
-* cached metadata lookup
+Owns synchronous Neo4j execution without leaking driver result and summary implementations into the
+rest of Graphite.
+
+Responsibilities:
+
+* Session and transaction lifecycle
+* Read/write routing and query options
+* Materialized result records, counters, summaries, and bookmarks
+* Managed retryable and explicit transactions
+* Driver-to-Graphite exception translation
+* Node and relationship record mappers
 
 ## graphite-spring
 
 Spring integration layer.
 
-Status: placeholder. No Spring or Neo4j dependency is currently included.
-
 Responsibilities:
 
-* GraphiteTemplate
-* Transaction participation
-* Neo4jClient bridge
-* Result mapping
-* Exception translation
+* Spring-aware `GraphiteSpringTemplate`
+* Transaction participation through `GraphiteTransactionManager`
+* Read-only routing, timeout propagation, rollback-only state, and transaction suspension
 
 ## graphite-spring-boot-starter
 
 Auto-configuration and zero-friction setup.
 
-Status: placeholder. Auto-configuration has not been implemented yet.
+Responsibilities:
+
+* Externalized driver and query defaults
+* Conditional, user-overridable runtime beans
+* Optional startup connectivity verification
+* Driver lifecycle management
 
 ## Internal Query Flow
 
@@ -103,8 +116,8 @@ Becomes:
 2. Immutable AST model
 3. Validation pass
 4. Cypher render output
-5. Execution via adapter (planned)
-6. Result mapping (planned)
+5. Execution via `GraphiteClient` or `GraphiteSpringTemplate`
+6. Materialized results and optional Java-record mapping
 
 ## AST Philosophy
 
@@ -128,7 +141,6 @@ Never the inverse.
 
 ## Public API stability matters
 
-n
 Internal implementations may evolve.
 The user-facing DSL should remain predictable.
 
@@ -150,7 +162,11 @@ adding dispatch branches to the facade.
 Path construction and MATCH-based writes share `PathPattern`, predicate validation, and match-clause
 rendering so new operations do not each recreate graph traversal semantics.
 
-## Future Extensions
+## Current Boundary and Future Extensions
+
+The structured AST deliberately supports a single connected path and fixed MATCH/CREATE/MERGE or
+MATCH-based update/delete shapes. General clause pipelines and multiple pattern parts are not yet
+represented. Raw Cypher is the supported compatibility boundary for queries beyond that subset.
 
 Planned extension points:
 
@@ -171,7 +187,8 @@ Core and renderer logic.
 
 Neo4j Testcontainers.
 
-Status: planned; current tests cover AST validation and rendering contracts only.
+Runtime integration tests cover operations, traversal, record mapping, transaction commit/rollback,
+bookmarks, summaries, and failure translation. They skip when Docker is unavailable.
 
 ## Contract Tests
 

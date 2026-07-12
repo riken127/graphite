@@ -143,6 +143,7 @@ Graphite exists to restore that balance.
 * `graphite-core`: core graph API primitives
 * `graphite-cypher`: Cypher-oriented query building utilities
 * `graphite-metadata`: metadata and mapping models
+* `graphite-neo4j`: Neo4j Java Driver execution and transaction adapter
 * `graphite-spring`: Spring integration layer
 * `graphite-spring-boot-starter`: starter entrypoint module
 * `graphite-test`: shared test support utilities
@@ -267,6 +268,85 @@ RenderedQuery rendered = new CypherRenderer().render(raw);
 
 Never concatenate untrusted values into raw Cypher. Use parameters for all values.
 
+## Neo4j Execution
+
+`graphite-neo4j` executes both structured queries and the explicit raw-Cypher escape hatch. The
+application owns the Neo4j `Driver`; closing a `GraphiteClient` is therefore unnecessary and does
+not close the driver.
+
+```java
+try (Driver driver =
+    GraphDatabase.driver("bolt://localhost:7687", AuthTokens.basic("neo4j", password))) {
+  GraphiteClient client = new GraphiteClient(driver);
+
+  QueryResult<String> result =
+      client.execute(query, record -> record.value("c.id").asString());
+
+  String id = result.single();
+  QueryCounters counters = result.summary().counters();
+  Set<String> bookmarks = result.bookmarks();
+}
+```
+
+`QueryOptions` configures database selection, read/write routing, transaction timeout and metadata,
+fetch size, causal bookmarks, and user impersonation. Raw Cypher defaults to write routing when its
+access mode is `AUTO`, because Graphite cannot safely infer whether arbitrary text mutates data.
+
+Managed transactions use the driver's retryable transaction functions:
+
+```java
+TransactionResult<String> created =
+    client.writeTransaction(
+        tx -> tx.execute(createQuery, record -> record.value("c.id").asString()).single());
+```
+
+For framework integration or manual transaction control, use `beginTransaction(...)` in a
+try-with-resources block. An active transaction is rolled back when closed without a commit.
+
+## Record Mapping
+
+The metadata module maps returned node or relationship properties into immutable Java records.
+
+```java
+@GraphNode("Consultant")
+record Consultant(
+    @GraphId String id,
+    @GraphProperty("display_name") String name,
+    int rating) {}
+
+RecordEntityMapper entities =
+    new RecordEntityMapper(new ReflectionNodeMetadataRegistry());
+
+Consultant consultant =
+    client.execute(query, Neo4jMappers.node("c", Consultant.class, entities)).single();
+```
+
+Metadata is validated and cached per record type. Missing primitive properties, duplicate graph
+property names, invalid identifiers, unsupported target types, and unsafe numeric narrowing fail
+with metadata-specific exceptions.
+
+## Spring Boot
+
+Add `graphite-spring-boot-starter` and configure the connection:
+
+```properties
+graphite.uri=bolt://localhost:7687
+graphite.username=neo4j
+graphite.password=${NEO4J_PASSWORD}
+graphite.database=neo4j
+graphite.timeout=5s
+graphite.fetch-size=1000
+graphite.verify-connectivity-on-startup=true
+```
+
+The starter supplies the driver, `GraphiteClient`, `GraphiteSpringTemplate`, metadata mapper, and
+`GraphiteTransactionManager` when the application has not supplied its own beans. Inject
+`GraphiteSpringTemplate` for query execution; calls made inside Spring `@Transactional` methods
+participate in the same Neo4j transaction. A read-only transaction uses read routing.
+
+Set `graphite.enabled=false` to disable all Graphite auto-configuration. For advanced driver tuning,
+provide a custom Neo4j `Driver` bean.
+
 ## Current Scope
 
 The implemented production foundation currently includes:
@@ -278,8 +358,16 @@ The implemented production foundation currently includes:
 * optional write returns
 * a unified renderer with a public query-renderer extension point
 * an explicit raw-Cypher escape hatch
+* synchronous Neo4j execution with query summaries, counters, bookmarks, and typed failure mapping
+* managed and explicit transactions, including Spring transaction participation
+* cached Java-record metadata and node/relationship property mapping
+* Spring Boot auto-configuration with overridable beans and external connection settings
+* Docker-conditional Neo4j Testcontainers coverage
 
-The `graphite-spring`, `graphite-spring-boot-starter`, `graphite-metadata`, and `graphite-test`
-modules remain placeholders. They must not yet be treated as database execution or object-mapping
-integrations. A real Neo4j execution adapter, transaction participation, result mapping, Spring Boot
-auto-configuration, and Testcontainers coverage are the next production milestone.
+The main remaining language limitation is clause composition: queries still model one connected
+path and a fixed operation shape. Multiple patterns, relationship creation/merge, `OPTIONAL MATCH`,
+`WITH`, `UNWIND`, aggregation, subqueries, list/map expressions, and procedure calls require either
+the raw-Cypher escape hatch or future AST work. Reactive execution, schema/migration tooling,
+observability hooks, generated metamodels, performance benchmarks, and richer test fixtures also
+remain future production-hardening work. Results are currently fully materialized, so large or
+unbounded result sets need explicit pagination until a streaming API exists.
