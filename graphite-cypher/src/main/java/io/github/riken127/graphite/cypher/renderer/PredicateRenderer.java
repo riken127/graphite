@@ -1,6 +1,10 @@
 package io.github.riken127.graphite.cypher.renderer;
 
 import io.github.riken127.graphite.core.model.predicate.ComparisonPredicate;
+import io.github.riken127.graphite.core.model.predicate.ExpressionComparisonPredicate;
+import io.github.riken127.graphite.core.model.predicate.ExpressionInPredicate;
+import io.github.riken127.graphite.core.model.predicate.ExpressionNullPredicate;
+import io.github.riken127.graphite.core.model.predicate.ExpressionTextPredicate;
 import io.github.riken127.graphite.core.model.predicate.InPredicate;
 import io.github.riken127.graphite.core.model.predicate.LogicalPredicate;
 import io.github.riken127.graphite.core.model.predicate.NotPredicate;
@@ -27,6 +31,29 @@ final class PredicateRenderer {
   private static String renderPredicate(Predicate predicate, ParameterAccumulator parameters) {
     if (predicate instanceof ComparisonPredicate comparisonPredicate) {
       return renderComparison(comparisonPredicate, parameters);
+    }
+    if (predicate instanceof ExpressionComparisonPredicate comparisonPredicate) {
+      return ExpressionRenderer.render(comparisonPredicate.left(), parameters)
+          + " "
+          + comparisonPredicate.operator().cypherSymbol()
+          + " "
+          + ExpressionRenderer.render(comparisonPredicate.right(), parameters);
+    }
+    if (predicate instanceof ExpressionInPredicate inPredicate) {
+      return ExpressionRenderer.render(inPredicate.value(), parameters)
+          + " IN "
+          + ExpressionRenderer.render(inPredicate.collection(), parameters);
+    }
+    if (predicate instanceof ExpressionTextPredicate textPredicate) {
+      return ExpressionRenderer.render(textPredicate.value(), parameters)
+          + " "
+          + textPredicate.operator().cypherKeyword()
+          + " "
+          + ExpressionRenderer.render(textPredicate.expected(), parameters);
+    }
+    if (predicate instanceof ExpressionNullPredicate nullPredicate) {
+      return ExpressionRenderer.render(nullPredicate.expression(), parameters)
+          + (nullPredicate.isNull() ? " IS NULL" : " IS NOT NULL");
     }
     if (predicate instanceof InPredicate inPredicate) {
       return renderIn(inPredicate, parameters);
