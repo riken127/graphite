@@ -1,0 +1,70 @@
+package io.github.riken127.graphite.neo4j;
+
+import io.github.riken127.graphite.core.model.Query;
+import io.github.riken127.graphite.cypher.model.RawCypherQuery;
+import io.github.riken127.graphite.cypher.model.RenderedQuery;
+import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
+import io.github.riken127.graphite.neo4j.exception.GraphiteMappingException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import org.neo4j.driver.Record;
+import org.neo4j.driver.Result;
+import org.neo4j.driver.SimpleQueryRunner;
+import org.neo4j.driver.exceptions.Neo4jException;
+
+final class DriverQueryExecutor implements GraphiteOperations {
+
+  private final SimpleQueryRunner queryRunner;
+  private final CypherRenderer renderer;
+
+  DriverQueryExecutor(SimpleQueryRunner queryRunner, CypherRenderer renderer) {
+    this.queryRunner = Objects.requireNonNull(queryRunner, "queryRunner must not be null");
+    this.renderer = Objects.requireNonNull(renderer, "renderer must not be null");
+  }
+
+  @Override
+  public QueryResult<Neo4jRecord> execute(Query query) {
+    return execute(query, record -> record);
+  }
+
+  @Override
+  public <T> QueryResult<T> execute(Query query, Neo4jRecordMapper<T> mapper) {
+    return executeRendered(renderer.render(query), mapper);
+  }
+
+  @Override
+  public QueryResult<Neo4jRecord> execute(RawCypherQuery query) {
+    return execute(query, record -> record);
+  }
+
+  @Override
+  public <T> QueryResult<T> execute(RawCypherQuery query, Neo4jRecordMapper<T> mapper) {
+    return executeRendered(renderer.render(query), mapper);
+  }
+
+  <T> QueryResult<T> executeRendered(RenderedQuery renderedQuery, Neo4jRecordMapper<T> mapper) {
+    Objects.requireNonNull(renderedQuery, "renderedQuery must not be null");
+    Objects.requireNonNull(mapper, "mapper must not be null");
+
+    try {
+      Result result = queryRunner.run(renderedQuery.cypher(), renderedQuery.parameters());
+      List<T> mappedRecords = new ArrayList<>();
+      while (result.hasNext()) {
+        Record record = result.next();
+        try {
+          mappedRecords.add(mapper.map(new Neo4jRecord(record)));
+        } catch (Neo4jException failure) {
+          throw failure;
+        } catch (RuntimeException failure) {
+          throw new GraphiteMappingException("failed to map Neo4j result record", failure);
+        }
+      }
+
+      return new QueryResult<>(mappedRecords, DriverSummaryMapper.map(result.consume()), Set.of());
+    } catch (RuntimeException failure) {
+      throw DriverExceptionTranslator.translate(failure);
+    }
+  }
+}
