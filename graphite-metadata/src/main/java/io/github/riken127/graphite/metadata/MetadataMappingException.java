@@ -1,6 +1,6 @@
 package io.github.riken127.graphite.metadata;
 
-/** Failure while constructing a mapped Java record from graph properties. */
+/** Failure while constructing a mapped object from graph properties. */
 public final class MetadataMappingException extends MetadataException {
 
   public MetadataMappingException(String message) {

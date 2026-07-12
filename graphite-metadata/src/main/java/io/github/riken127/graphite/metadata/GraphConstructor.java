@@ -5,11 +5,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Overrides the graph label associated with a mapped immutable type. */
+/** Selects the constructor used to create a mapped immutable graph object. */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
-public @interface GraphNode {
-
-  /** Returns the graph label. */
-  String value();
-}
+@Target(ElementType.CONSTRUCTOR)
+public @interface GraphConstructor {}

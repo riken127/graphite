@@ -4,7 +4,7 @@ import io.github.riken127.graphite.core.validation.AstValidator;
 import java.lang.reflect.Type;
 import java.util.Objects;
 
-/** Immutable mapping between a Java record component and a graph property. */
+/** Immutable mapping between a Java constructor property and a graph property. */
 public record PropertyMetadata(
     String javaName,
     String graphName,

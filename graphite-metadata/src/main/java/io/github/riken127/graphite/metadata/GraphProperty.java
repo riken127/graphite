@@ -5,9 +5,14 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Overrides the graph property name associated with a Java record component. */
+/** Overrides the graph property name associated with a mapped component, field, or parameter. */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.RECORD_COMPONENT, ElementType.FIELD, ElementType.METHOD})
+@Target({
+  ElementType.RECORD_COMPONENT,
+  ElementType.FIELD,
+  ElementType.METHOD,
+  ElementType.PARAMETER
+})
 public @interface GraphProperty {
 
   /** Returns the graph property name. */

@@ -1,7 +1,6 @@
 package io.github.riken127.graphite.metadata;
 
 import io.github.riken127.graphite.core.validation.AstValidator;
-import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -9,7 +8,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-/** Thread-safe reflection metadata registry for Java records. */
+/**
+ * Thread-safe reflection metadata registry for records and constructor-backed immutable classes.
+ */
 public final class ReflectionNodeMetadataRegistry implements NodeMetadataRegistry {
 
   private final ConcurrentMap<Class<?>, NodeMetadata> metadataCache = new ConcurrentHashMap<>();
@@ -28,41 +29,35 @@ public final class ReflectionNodeMetadataRegistry implements NodeMetadataRegistr
   }
 
   private NodeMetadata inspect(Class<?> javaType) {
-    if (!javaType.isRecord()) {
-      throw new MetadataException("mapped type must be a Java record: " + javaType.getName());
-    }
-
     GraphNode graphNode = javaType.getAnnotation(GraphNode.class);
     String label =
         AstValidator.requireLabel(graphNode == null ? javaType.getSimpleName() : graphNode.value());
-    RecordComponent[] components = javaType.getRecordComponents();
-    List<PropertyMetadata> properties = new ArrayList<>(components.length);
+    List<ReflectionMappingSupport.ReflectedProperty> reflectedProperties =
+        ReflectionMappingSupport.properties(
+            javaType, ReflectionMappingSupport.constructor(javaType));
+    List<PropertyMetadata> properties = new ArrayList<>(reflectedProperties.size());
     Set<String> graphNames = new HashSet<>();
     boolean foundId = false;
 
-    for (int index = 0; index < components.length; index++) {
-      RecordComponent component = components[index];
-      GraphProperty graphProperty = component.getAnnotation(GraphProperty.class);
-      String graphName =
-          AstValidator.requireProperty(
-              graphProperty == null ? component.getName() : graphProperty.value());
+    for (ReflectionMappingSupport.ReflectedProperty reflected : reflectedProperties) {
+      String graphName = AstValidator.requireProperty(reflected.graphName());
       if (!graphNames.add(graphName)) {
         throw new MetadataException(
             "duplicate graph property '" + graphName + "' on " + javaType.getName());
       }
-      boolean id = component.isAnnotationPresent(GraphId.class);
+      boolean id = reflected.id();
       if (id && foundId) {
         throw new MetadataException("multiple @GraphId components on " + javaType.getName());
       }
       foundId |= id;
       properties.add(
           new PropertyMetadata(
-              component.getName(),
+              reflected.javaName(),
               graphName,
-              component.getType(),
-              component.getGenericType(),
+              reflected.javaType(),
+              reflected.genericType(),
               id,
-              index));
+              reflected.constructorIndex()));
     }
 
     return new NodeMetadata(javaType, label, properties);

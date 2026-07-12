@@ -32,7 +32,7 @@ public record NodeMetadata(Class<?> javaType, String label, List<PropertyMetadat
     return properties.stream().filter(PropertyMetadata::id).findFirst();
   }
 
-  /** Finds metadata by its Java record-component name. */
+  /** Finds metadata by its Java constructor-property name. */
   public Optional<PropertyMetadata> property(String javaName) {
     Objects.requireNonNull(javaName, "javaName must not be null");
     return properties.stream().filter(property -> property.javaName().equals(javaName)).findFirst();
