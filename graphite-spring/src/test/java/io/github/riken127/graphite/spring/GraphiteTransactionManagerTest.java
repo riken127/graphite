@@ -13,6 +13,7 @@ import io.github.riken127.graphite.neo4j.GraphiteExplicitTransaction;
 import io.github.riken127.graphite.neo4j.QueryAccessMode;
 import io.github.riken127.graphite.neo4j.QueryOptions;
 import io.github.riken127.graphite.neo4j.QueryResult;
+import io.github.riken127.graphite.neo4j.StreamingQueryResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -70,8 +71,24 @@ class GraphiteTransactionManagerTest {
     verify(client).execute(query);
   }
 
+  @Test
+  void templateDelegatesStreamingOutsideTransaction() {
+    Query query = mock(Query.class);
+    StreamingQueryResult<?> result = mock(StreamingQueryResult.class);
+    when(client.stream(query)).thenReturn(castStream(result));
+
+    template.stream(query);
+
+    verify(client).stream(query);
+  }
+
   @SuppressWarnings("unchecked")
   private static <T> QueryResult<T> cast(QueryResult<?> result) {
     return (QueryResult<T>) result;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> StreamingQueryResult<T> castStream(StreamingQueryResult<?> result) {
+    return (StreamingQueryResult<T>) result;
   }
 }

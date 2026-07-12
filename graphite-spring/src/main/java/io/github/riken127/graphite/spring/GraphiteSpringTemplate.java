@@ -7,6 +7,7 @@ import io.github.riken127.graphite.neo4j.GraphiteOperations;
 import io.github.riken127.graphite.neo4j.Neo4jRecord;
 import io.github.riken127.graphite.neo4j.Neo4jRecordMapper;
 import io.github.riken127.graphite.neo4j.QueryResult;
+import io.github.riken127.graphite.neo4j.StreamingQueryResult;
 import java.util.Objects;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -39,11 +40,30 @@ public final class GraphiteSpringTemplate implements GraphiteOperations {
     return currentOperations().execute(query, mapper);
   }
 
+  /** Opens a closeable stream outside a Spring-managed transaction. */
+  public StreamingQueryResult<Neo4jRecord> stream(Query query) {
+    requireNoBoundTransaction();
+    return client.stream(query);
+  }
+
+  /** Opens a mapped closeable stream outside a Spring-managed transaction. */
+  public <T> StreamingQueryResult<T> stream(Query query, Neo4jRecordMapper<T> mapper) {
+    requireNoBoundTransaction();
+    return client.stream(query, mapper);
+  }
+
   private GraphiteOperations currentOperations() {
     Object resource = TransactionSynchronizationManager.getResource(client);
     if (resource instanceof GraphiteTransactionHolder holder) {
       return holder.transaction();
     }
     return client;
+  }
+
+  private void requireNoBoundTransaction() {
+    if (TransactionSynchronizationManager.hasResource(client)) {
+      throw new IllegalStateException(
+          "streaming owns its transaction and cannot run inside Spring @Transactional");
+    }
   }
 }
