@@ -272,7 +272,9 @@ Never concatenate untrusted values into raw Cypher. Use parameters for all value
 
 `Graphite.query()` builds a general ordered clause AST alongside the compatibility builders. It
 supports multiple patterns, `OPTIONAL MATCH`, typed expression predicates, `WITH`, `UNWIND`,
-aliased or distinct projections, aggregate functions, expression sorting, and paging.
+aliased or distinct projections, aggregate functions, expression sorting, and paging. The same AST
+also supports relationship-aware `CREATE`/`MERGE`, `SET`, `REMOVE`, `DELETE`, procedure calls,
+scoped subqueries, and compatible `UNION` branches.
 
 ```java
 ReflectionNodeMetadataRegistry metadata = new ReflectionNodeMetadataRegistry();
@@ -297,6 +299,30 @@ The metadata-backed `GraphEntity` resolves `@GraphNode` and `@GraphProperty` val
 declared Java property type. For example, the property above is a `TypedPropertyRef<Integer>`, so
 passing a string to `gte(...)` does not compile. The original string-based builders remain available
 for source compatibility.
+
+Write targets retain their Java type through `SetAssignment<T>`, while searched `CASE`, list, and
+map expressions keep values parameterized:
+
+```java
+ClauseQuery update =
+    Graphite.query()
+        .match(Graphite.path(consultant.node()).build())
+        .set(
+            Expressions.set(
+                consultant.property("status", String.class),
+                Expressions.caseWhen(
+                    String.class,
+                    Expressions.value("inactive", String.class),
+                    Expressions.when(
+                        consultant.property("rating", Integer.class).gte(5),
+                        Expressions.value("preferred", String.class)))))
+        .build();
+```
+
+Use `Graphite.subquery(imports...)` to validate imported scope before attaching it with
+`subquery(...)`. `Graphite.union(...)` and `unionAll(...)` require every branch to return the same
+explicitly aliased columns. Procedure calls default to write routing; use `callReadOnly(...)` only
+when the procedure's read-only behavior is known.
 
 ## Neo4j Execution
 
@@ -411,12 +437,14 @@ provide a custom Neo4j `Driver` bean.
 
 The implemented production foundation currently includes:
 
-* immutable reusable path patterns and general ordered read-clause queries
+* immutable reusable path patterns and general ordered read/write clause queries
 * multiple and optional match patterns, scoped `WITH`, `UNWIND`, aggregates, and typed projections
 * outgoing, incoming, undirected, and variable-length traversals
 * grouped `AND`, `OR`, and `NOT` predicates
 * metadata-backed typed entities and property references
 * parameterized matching, creation, merging, updating, and deletion
+* typed relationship writes, conditional merge assignments, and write queries without returns
+* searched `CASE`, list/map literals, scoped subqueries, compatible unions, and procedure calls
 * optional write returns
 * a unified renderer with a public query-renderer extension point
 * an explicit raw-Cypher escape hatch
@@ -429,8 +457,8 @@ The implemented production foundation currently includes:
 * Docker-conditional Neo4j and real Spring transaction integration coverage
 * CI enforcement that fails when required container tests cannot start
 
-The compatibility write builders still use fixed operation shapes. General relationship
-creation/merge, typed mutation clauses, `CASE`, list/map comprehensions, subqueries, `UNION`, and
-procedure calls require the raw-Cypher escape hatch or future AST work. Reactive execution,
+The compatibility write builders still use fixed operation shapes, while the ordered AST provides
+the composable path. Dynamic labels/types, list and pattern comprehensions, procedure `YIELD`
+renaming, and vendor-specific clauses still use the raw-Cypher escape hatch. Reactive execution,
 generated metamodels, full migration versioning, driver compatibility matrices, and performance
-benchmarks also remain future production-hardening work.
+benchmarks remain separate production-hardening tracks.

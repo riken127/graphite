@@ -164,14 +164,17 @@ Avoid deep class hierarchies.
 adding dispatch branches to the facade.
 
 Path construction and MATCH-based writes share `PathPattern` and predicate validation. The general
-`ClauseQuery` model composes independent match, filter, scope, unwind, return, ordering, and paging
-clauses without adding dispatch branches to the renderer facade.
+`ClauseQuery` model composes independent match, filter, scope, unwind, mutation, procedure,
+subquery, return, ordering, and paging clauses without adding dispatch branches to the renderer
+facade. `UnionQuery` composes validated branches through its own renderer.
 
 ## Current Boundary and Future Extensions
 
-The general AST currently focuses on read pipelines. The compatibility AST retains fixed
-MATCH/CREATE/MERGE and MATCH-based update/delete shapes. Raw Cypher is the supported compatibility
-boundary for general write clauses, subqueries, unions, and procedures.
+The general AST covers common read and write pipelines, scoped subqueries, compatible unions, and
+procedure calls with explicit read/write intent. The compatibility AST retains fixed
+MATCH/CREATE/MERGE and MATCH-based update/delete shapes. Raw Cypher remains the boundary for
+dynamic labels/types, expression comprehensions, procedure yield renaming, and vendor-specific
+clauses.
 
 Planned extension points:
 
@@ -192,10 +195,10 @@ Core and renderer logic.
 
 Neo4j Testcontainers.
 
-Runtime integration tests cover operations, traversal, streaming completion/cancellation, record
-mapping, schema operations, transactions, bookmarks, observations, and failure translation. Local
-runs skip when Docker is unavailable; CI sets `graphite.requireDocker=true` so a missing daemon is a
-failure rather than a silent skip.
+Runtime integration tests cover operations, structured write/subquery/union execution, traversal,
+streaming completion/cancellation, record mapping, schema operations, transactions, bookmarks,
+observations, and failure translation. Local runs skip when Docker is unavailable; CI sets
+`graphite.requireDocker=true` so a missing daemon is a failure rather than a silent skip.
 
 ## Contract Tests
 

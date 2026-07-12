@@ -119,7 +119,7 @@ Completed foundations:
 
 Remaining work:
 
-* General write-clause composition and the remaining expression forms
+* Expression and pattern comprehensions plus vendor-specific clauses
 * Benchmarks and compatibility matrix
 * Versioned migration tooling
 * Generated metamodels
@@ -133,6 +133,7 @@ Recently completed:
 * Query observation and schema-management foundations
 * CI-enforced container and real Spring transaction tests
 * Reusable test helpers and a runnable runtime example
+* General write clauses, searched CASE/list/map expressions, scoped subqueries, unions, and calls
 
 Deliverables:
 
