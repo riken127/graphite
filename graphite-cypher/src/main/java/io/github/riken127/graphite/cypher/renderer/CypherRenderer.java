@@ -19,6 +19,7 @@ public final class CypherRenderer {
     this(
         List.of(
             new ClauseQueryRenderer(),
+            new UnionQueryRenderer(),
             new MatchQueryRenderer(),
             new CreateQueryRenderer(),
             new MergeQueryRenderer(),

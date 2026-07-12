@@ -1,8 +1,11 @@
 package io.github.riken127.graphite.cypher.renderer;
 
 import io.github.riken127.graphite.core.dsl.TypedPropertyRef;
+import io.github.riken127.graphite.core.model.expression.CaseExpression;
 import io.github.riken127.graphite.core.model.expression.Expression;
 import io.github.riken127.graphite.core.model.expression.FunctionExpression;
+import io.github.riken127.graphite.core.model.expression.ListExpression;
+import io.github.riken127.graphite.core.model.expression.MapExpression;
 import io.github.riken127.graphite.core.model.expression.ParameterExpression;
 import io.github.riken127.graphite.core.model.expression.Projection;
 import io.github.riken127.graphite.core.model.expression.PropertyExpression;
@@ -34,6 +37,35 @@ final class ExpressionRenderer {
       }
       String prefix = function.distinct() ? "DISTINCT " : "";
       return function.name() + "(" + prefix + String.join(", ", arguments) + ")";
+    }
+    if (expression instanceof ListExpression<?> list) {
+      return list.elements().stream()
+          .map(element -> render(element, parameters))
+          .reduce((left, right) -> left + ", " + right)
+          .map(values -> "[" + values + "]")
+          .orElse("[]");
+    }
+    if (expression instanceof MapExpression map) {
+      List<String> entries = new ArrayList<>();
+      map.entries().forEach((key, value) -> entries.add(key + ": " + render(value, parameters)));
+      return "{" + String.join(", ", entries) + "}";
+    }
+    if (expression instanceof CaseExpression<?> caseExpression) {
+      StringBuilder rendered = new StringBuilder("CASE");
+      caseExpression
+          .alternatives()
+          .forEach(
+              alternative ->
+                  rendered
+                      .append(" WHEN ")
+                      .append(PredicateRenderer.render(List.of(alternative.when()), parameters))
+                      .append(" THEN ")
+                      .append(render(alternative.then(), parameters)));
+      return rendered
+          .append(" ELSE ")
+          .append(render(caseExpression.otherwise(), parameters))
+          .append(" END")
+          .toString();
     }
     throw new IllegalArgumentException(
         "unsupported expression type: " + expression.getClass().getName());
