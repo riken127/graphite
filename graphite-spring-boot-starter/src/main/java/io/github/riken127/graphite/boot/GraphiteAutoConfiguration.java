@@ -1,10 +1,14 @@
 package io.github.riken127.graphite.boot;
 
 import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
+import io.github.riken127.graphite.metadata.GraphEntityFactory;
+import io.github.riken127.graphite.metadata.GraphValueConverters;
 import io.github.riken127.graphite.metadata.NodeMetadataRegistry;
 import io.github.riken127.graphite.metadata.RecordEntityMapper;
 import io.github.riken127.graphite.metadata.ReflectionNodeMetadataRegistry;
 import io.github.riken127.graphite.neo4j.GraphiteClient;
+import io.github.riken127.graphite.neo4j.GraphiteSchemaManager;
+import io.github.riken127.graphite.neo4j.QueryObserver;
 import io.github.riken127.graphite.neo4j.QueryOptions;
 import io.github.riken127.graphite.spring.GraphiteSpringTemplate;
 import io.github.riken127.graphite.spring.GraphiteTransactionManager;
@@ -50,8 +54,9 @@ public class GraphiteAutoConfiguration {
       Driver driver,
       CypherRenderer renderer,
       QueryOptions queryOptions,
+      QueryObserver queryObserver,
       GraphiteProperties properties) {
-    GraphiteClient client = new GraphiteClient(driver, renderer, queryOptions);
+    GraphiteClient client = new GraphiteClient(driver, renderer, queryOptions, queryObserver);
     if (properties.isVerifyConnectivityOnStartup()) {
       client.verifyConnectivity();
     }
@@ -66,8 +71,33 @@ public class GraphiteAutoConfiguration {
 
   @Bean
   @ConditionalOnMissingBean
-  RecordEntityMapper graphiteRecordEntityMapper(NodeMetadataRegistry metadataRegistry) {
-    return new RecordEntityMapper(metadataRegistry);
+  GraphEntityFactory graphiteEntityFactory(NodeMetadataRegistry metadataRegistry) {
+    return new GraphEntityFactory(metadataRegistry);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  QueryObserver graphiteQueryObserver() {
+    return QueryObserver.noop();
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  GraphiteSchemaManager graphiteSchemaManager(GraphiteClient client, QueryOptions queryOptions) {
+    return new GraphiteSchemaManager(client, queryOptions);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  RecordEntityMapper graphiteRecordEntityMapper(
+      NodeMetadataRegistry metadataRegistry, GraphValueConverters converters) {
+    return new RecordEntityMapper(metadataRegistry, converters);
+  }
+
+  @Bean
+  @ConditionalOnMissingBean
+  GraphValueConverters graphiteValueConverters() {
+    return GraphValueConverters.empty();
   }
 
   @Bean

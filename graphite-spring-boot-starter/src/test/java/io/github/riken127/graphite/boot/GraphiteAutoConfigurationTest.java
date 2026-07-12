@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
+import io.github.riken127.graphite.metadata.GraphEntityFactory;
+import io.github.riken127.graphite.metadata.GraphValueConverters;
 import io.github.riken127.graphite.metadata.NodeMetadataRegistry;
 import io.github.riken127.graphite.metadata.RecordEntityMapper;
 import io.github.riken127.graphite.neo4j.GraphiteClient;
+import io.github.riken127.graphite.neo4j.GraphiteSchemaManager;
+import io.github.riken127.graphite.neo4j.QueryObserver;
 import io.github.riken127.graphite.neo4j.QueryOptions;
 import io.github.riken127.graphite.spring.GraphiteSpringTemplate;
 import io.github.riken127.graphite.spring.GraphiteTransactionManager;
@@ -39,6 +43,10 @@ class GraphiteAutoConfigurationTest {
               assertThat(context).hasSingleBean(GraphiteTransactionManager.class);
               assertThat(context).hasSingleBean(NodeMetadataRegistry.class);
               assertThat(context).hasSingleBean(RecordEntityMapper.class);
+              assertThat(context).hasSingleBean(GraphEntityFactory.class);
+              assertThat(context).hasSingleBean(QueryObserver.class);
+              assertThat(context).hasSingleBean(GraphiteSchemaManager.class);
+              assertThat(context).hasSingleBean(GraphValueConverters.class);
               assertThat(context).getBean(Driver.class).isSameAs(driver);
 
               QueryOptions options = context.getBean(QueryOptions.class);
