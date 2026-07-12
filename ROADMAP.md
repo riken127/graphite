@@ -119,11 +119,20 @@ Completed foundations:
 
 Remaining work:
 
-* General clause composition and a broader Cypher AST
-* Metrics and tracing hooks
+* General write-clause composition and the remaining expression forms
 * Benchmarks and compatibility matrix
-* Schema and migration tooling
-* Richer test fixtures and runnable application examples
+* Versioned migration tooling
+* Generated metamodels
+
+Recently completed:
+
+* Typed expression and ordered read-clause AST
+* Metadata-backed typed entity references
+* Closeable streaming execution
+* Nested/generic record mapping and converter extensions
+* Query observation and schema-management foundations
+* CI-enforced container and real Spring transaction tests
+* Reusable test helpers and a runnable runtime example
 
 Deliverables:
 

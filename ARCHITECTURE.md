@@ -34,6 +34,7 @@ Responsibilities:
 
 * Fluent query DSL
 * Query AST
+* Ordered clause and typed expression ASTs
 * Node / relationship patterns
 * Expressions and predicates
 * Projections
@@ -62,7 +63,8 @@ Responsibilities:
 * node labels, IDs, and property names
 * validated reflection descriptors for Java records
 * thread-safe cached metadata lookup
-* record construction and exact scalar coercion
+* metadata-backed typed query references
+* nested record construction, generic collections, and extensible value conversion
 
 ## graphite-neo4j
 
@@ -73,7 +75,9 @@ Responsibilities:
 
 * Session and transaction lifecycle
 * Read/write routing and query options
-* Materialized result records, counters, summaries, and bookmarks
+* Materialized and closeable streaming results
+* Query observation lifecycle hooks
+* Idempotent schema operations
 * Managed retryable and explicit transactions
 * Driver-to-Graphite exception translation
 * Node and relationship record mappers
@@ -117,7 +121,7 @@ Becomes:
 3. Validation pass
 4. Cypher render output
 5. Execution via `GraphiteClient` or `GraphiteSpringTemplate`
-6. Materialized results and optional Java-record mapping
+6. Materialized or streaming results and optional Java-record mapping
 
 ## AST Philosophy
 
@@ -159,22 +163,23 @@ Avoid deep class hierarchies.
 `QueryRenderer<Q>` implementations. Additional query models can provide another renderer without
 adding dispatch branches to the facade.
 
-Path construction and MATCH-based writes share `PathPattern`, predicate validation, and match-clause
-rendering so new operations do not each recreate graph traversal semantics.
+Path construction and MATCH-based writes share `PathPattern` and predicate validation. The general
+`ClauseQuery` model composes independent match, filter, scope, unwind, return, ordering, and paging
+clauses without adding dispatch branches to the renderer facade.
 
 ## Current Boundary and Future Extensions
 
-The structured AST deliberately supports a single connected path and fixed MATCH/CREATE/MERGE or
-MATCH-based update/delete shapes. General clause pipelines and multiple pattern parts are not yet
-represented. Raw Cypher is the supported compatibility boundary for queries beyond that subset.
+The general AST currently focuses on read pipelines. The compatibility AST retains fixed
+MATCH/CREATE/MERGE and MATCH-based update/delete shapes. Raw Cypher is the supported compatibility
+boundary for general write clauses, subqueries, unions, and procedures.
 
 Planned extension points:
 
 * Query planners
 * Reactive execution adapters
 * Generated metamodels
-* Schema tooling
-* Metrics / observability hooks
+* Versioned schema migrations
+* Metrics-provider integrations
 * Alternative graph backends
 
 ## Testing Strategy
@@ -187,8 +192,10 @@ Core and renderer logic.
 
 Neo4j Testcontainers.
 
-Runtime integration tests cover operations, traversal, record mapping, transaction commit/rollback,
-bookmarks, summaries, and failure translation. They skip when Docker is unavailable.
+Runtime integration tests cover operations, traversal, streaming completion/cancellation, record
+mapping, schema operations, transactions, bookmarks, observations, and failure translation. Local
+runs skip when Docker is unavailable; CI sets `graphite.requireDocker=true` so a missing daemon is a
+failure rather than a silent skip.
 
 ## Contract Tests
 

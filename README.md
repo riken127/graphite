@@ -268,6 +268,36 @@ RenderedQuery rendered = new CypherRenderer().render(raw);
 
 Never concatenate untrusted values into raw Cypher. Use parameters for all values.
 
+## Typed Clause Queries
+
+`Graphite.query()` builds a general ordered clause AST alongside the compatibility builders. It
+supports multiple patterns, `OPTIONAL MATCH`, typed expression predicates, `WITH`, `UNWIND`,
+aliased or distinct projections, aggregate functions, expression sorting, and paging.
+
+```java
+ReflectionNodeMetadataRegistry metadata = new ReflectionNodeMetadataRegistry();
+GraphEntity<Consultant> consultant =
+    new GraphEntityFactory(metadata).entity(Consultant.class, "c");
+
+ClauseQuery query =
+    Graphite.query()
+        .match(Graphite.path(consultant.node()).build())
+        .where(consultant.property("rating", Integer.class).gte(5))
+        .with(
+            Projection.of(consultant.variable()),
+            Projection.as(consultant.property("name", String.class), "displayName"))
+        .returning(
+            true,
+            Projection.of(Expressions.variable("displayName", String.class)))
+        .orderBy(Expressions.asc(Expressions.variable("displayName", String.class)))
+        .build();
+```
+
+The metadata-backed `GraphEntity` resolves `@GraphNode` and `@GraphProperty` values and verifies the
+declared Java property type. For example, the property above is a `TypedPropertyRef<Integer>`, so
+passing a string to `gte(...)` does not compile. The original string-based builders remain available
+for source compatibility.
+
 ## Neo4j Execution
 
 `graphite-neo4j` executes both structured queries and the explicit raw-Cypher escape hatch. The
@@ -303,6 +333,24 @@ TransactionResult<String> created =
 For framework integration or manual transaction control, use `beginTransaction(...)` in a
 try-with-resources block. An active transaction is rolled back when closed without a commit.
 
+### Streaming Results
+
+Use a closeable stream for large result sets. Exhausting it commits its read transaction and makes
+the summary and bookmarks available. Closing it early rolls the transaction back and releases the
+driver session.
+
+```java
+try (StreamingQueryResult<Consultant> results =
+    client.stream(query, Neo4jMappers.node("c", Consultant.class, entities))) {
+  results.forEachRemaining(this::process);
+  QuerySummary summary = results.summary().orElseThrow();
+}
+```
+
+`StreamingQueryResult` is single-use and not thread-safe. Always use try-with-resources, including
+when converting it to a Java `Stream`. `GraphiteSpringTemplate.stream(...)` is available outside
+`@Transactional`; a stream owns its transaction and is rejected inside a Spring-managed one.
+
 ## Record Mapping
 
 The metadata module maps returned node or relationship properties into immutable Java records.
@@ -323,7 +371,18 @@ Consultant consultant =
 
 Metadata is validated and cached per record type. Missing primitive properties, duplicate graph
 property names, invalid identifiers, unsupported target types, and unsafe numeric narrowing fail
-with metadata-specific exceptions.
+with metadata-specific exceptions. Nested records, `Optional`, typed `List`/`Set` values, enums,
+UUIDs, exact numeric conversion, and application `GraphValueConverter` registrations are supported.
+
+## Operations and Observability
+
+`QueryObserver` provides non-sensitive operation, parameter-name, completion, failure, and stream
+cancellation callbacks for metrics, tracing, or structured logging. Observer failures are isolated
+from database behavior. Applications can expose a custom observer as a Spring bean.
+
+`GraphiteSchemaManager` provides validated, idempotent range-index and uniqueness-constraint
+operations. Applications with more elaborate migrations should continue using a dedicated migration
+tool and invoke it outside normal request handling.
 
 ## Spring Boot
 
@@ -339,9 +398,10 @@ graphite.fetch-size=1000
 graphite.verify-connectivity-on-startup=true
 ```
 
-The starter supplies the driver, `GraphiteClient`, `GraphiteSpringTemplate`, metadata mapper, and
-`GraphiteTransactionManager` when the application has not supplied its own beans. Inject
-`GraphiteSpringTemplate` for query execution; calls made inside Spring `@Transactional` methods
+The starter supplies the driver, `GraphiteClient`, `GraphiteSpringTemplate`, metadata and converter
+registries, schema manager, query observer, and `GraphiteTransactionManager` when the application
+has not supplied its own beans. Inject `GraphiteSpringTemplate` for query execution; calls made
+inside Spring `@Transactional` methods
 participate in the same Neo4j transaction. A read-only transaction uses read routing.
 
 Set `graphite.enabled=false` to disable all Graphite auto-configuration. For advanced driver tuning,
@@ -351,23 +411,26 @@ provide a custom Neo4j `Driver` bean.
 
 The implemented production foundation currently includes:
 
-* immutable single-path node and relationship patterns
+* immutable reusable path patterns and general ordered read-clause queries
+* multiple and optional match patterns, scoped `WITH`, `UNWIND`, aggregates, and typed projections
 * outgoing, incoming, undirected, and variable-length traversals
 * grouped `AND`, `OR`, and `NOT` predicates
+* metadata-backed typed entities and property references
 * parameterized matching, creation, merging, updating, and deletion
 * optional write returns
 * a unified renderer with a public query-renderer extension point
 * an explicit raw-Cypher escape hatch
-* synchronous Neo4j execution with query summaries, counters, bookmarks, and typed failure mapping
+* materialized and closeable streaming Neo4j execution
+* query summaries, counters, bookmarks, observations, and typed failure mapping
 * managed and explicit transactions, including Spring transaction participation
-* cached Java-record metadata and node/relationship property mapping
+* cached nested Java-record mapping with generic collections and custom converters
+* idempotent index and uniqueness-constraint management
 * Spring Boot auto-configuration with overridable beans and external connection settings
-* Docker-conditional Neo4j Testcontainers coverage
+* Docker-conditional Neo4j and real Spring transaction integration coverage
+* CI enforcement that fails when required container tests cannot start
 
-The main remaining language limitation is clause composition: queries still model one connected
-path and a fixed operation shape. Multiple patterns, relationship creation/merge, `OPTIONAL MATCH`,
-`WITH`, `UNWIND`, aggregation, subqueries, list/map expressions, and procedure calls require either
-the raw-Cypher escape hatch or future AST work. Reactive execution, schema/migration tooling,
-observability hooks, generated metamodels, performance benchmarks, and richer test fixtures also
-remain future production-hardening work. Results are currently fully materialized, so large or
-unbounded result sets need explicit pagination until a streaming API exists.
+The compatibility write builders still use fixed operation shapes. General relationship
+creation/merge, typed mutation clauses, `CASE`, list/map comprehensions, subqueries, `UNION`, and
+procedure calls require the raw-Cypher escape hatch or future AST work. Reactive execution,
+generated metamodels, full migration versioning, driver compatibility matrices, and performance
+benchmarks also remain future production-hardening work.
