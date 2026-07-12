@@ -1,6 +1,6 @@
 package io.github.riken127.graphite.scala
 
-import io.github.riken127.graphite.metadata.GraphNode
+import io.github.riken127.graphite.metadata.{GraphNode, GraphObjectMapper, ReflectionNodeMetadataRegistry}
 import io.github.riken127.graphite.scala.GraphiteScala.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -9,7 +9,7 @@ final class GraphiteScalaTest:
 
   @Test
   def buildsTypedQueriesFromScalaCaseClasses(): Unit =
-    val consultant = entity[Consultant]("c")
+    val consultant = entity[TestConsultant]("c")
     val rating = consultant.property[Int]("rating")
     val name = consultant.property[String]("name")
 
@@ -25,5 +25,14 @@ final class GraphiteScalaTest:
     assertEquals(classOf[Int], rating.valueType())
     assertEquals(5, built.clauses().size())
 
-  @GraphNode("ConsultantNode")
-  private final case class Consultant(name: String, rating: Int)
+  @Test
+  def mapsScalaCaseClassesThroughTheirPrimaryConstructor(): Unit =
+    val mapper = GraphObjectMapper(ReflectionNodeMetadataRegistry())
+
+    val consultant =
+      mapper.map(classOf[TestConsultant], java.util.Map.of("name", "Ada", "rating", Long.box(9)))
+
+    assertEquals(TestConsultant("Ada", 9), consultant)
+
+@GraphNode("ConsultantNode")
+private final case class TestConsultant(name: String, rating: Int)

@@ -1,7 +1,9 @@
 package io.github.riken127.graphite.kotlin
 
 import io.github.riken127.graphite.metadata.GraphNode
+import io.github.riken127.graphite.metadata.GraphObjectMapper
 import io.github.riken127.graphite.metadata.GraphProperty
+import io.github.riken127.graphite.metadata.ReflectionNodeMetadataRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -24,6 +26,19 @@ internal class GraphiteKotlinTest {
         assertEquals("ConsultantNode", consultant.node().label())
         assertEquals("display_name", displayName.property())
         assertEquals(5, built.clauses().size)
+    }
+
+    @Test
+    fun `maps Kotlin data classes through their primary constructor`() {
+        val mapper = GraphObjectMapper(ReflectionNodeMetadataRegistry())
+
+        val consultant =
+            mapper.map(
+                Consultant::class.java,
+                mapOf("display_name" to "Ada", "rating" to 9L),
+            )
+
+        assertEquals(Consultant("Ada", 9), consultant)
     }
 
     @GraphNode("ConsultantNode")
