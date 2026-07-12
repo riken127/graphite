@@ -6,7 +6,12 @@ import io.github.riken127.graphite.cypher.model.RenderedQuery;
 import java.util.Objects;
 
 /** Renders {@link MergeQuery} AST models into Cypher. */
-public final class MergeQueryRenderer {
+public final class MergeQueryRenderer implements QueryRenderer<MergeQuery> {
+
+  @Override
+  public Class<MergeQuery> queryType() {
+    return MergeQuery.class;
+  }
 
   /**
    * Renders a MERGE query into Cypher and bound parameters.
@@ -46,7 +51,9 @@ public final class MergeQueryRenderer {
                   query.nodePattern().alias(), query.onMatchProperties(), parameters));
     }
 
-    cypher.append(" RETURN ").append(String.join(", ", query.projections()));
+    if (!query.projections().isEmpty()) {
+      cypher.append(" RETURN ").append(String.join(", ", query.projections()));
+    }
 
     return new RenderedQuery(cypher.toString(), parameters.parameters());
   }

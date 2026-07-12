@@ -6,7 +6,12 @@ import io.github.riken127.graphite.cypher.model.RenderedQuery;
 import java.util.Objects;
 
 /** Renders {@link CreateQuery} AST models into Cypher. */
-public final class CreateQueryRenderer {
+public final class CreateQueryRenderer implements QueryRenderer<CreateQuery> {
+
+  @Override
+  public Class<CreateQuery> queryType() {
+    return CreateQuery.class;
+  }
 
   /**
    * Renders a CREATE query into Cypher and bound parameters.
@@ -34,7 +39,10 @@ public final class CreateQueryRenderer {
           .append("}");
     }
 
-    cypher.append(") RETURN ").append(String.join(", ", query.projections()));
+    cypher.append(")");
+    if (!query.projections().isEmpty()) {
+      cypher.append(" RETURN ").append(String.join(", ", query.projections()));
+    }
 
     return new RenderedQuery(cypher.toString(), parameters.parameters());
   }

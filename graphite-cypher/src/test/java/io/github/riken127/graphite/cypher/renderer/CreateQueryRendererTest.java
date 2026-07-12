@@ -36,4 +36,18 @@ class CreateQueryRendererTest {
     assertEquals("CREATE (c:Consultant) RETURN c.id", rendered.cypher());
     assertEquals(Map.of(), rendered.parameters());
   }
+
+  @Test
+  void renderCanOmitReturn() {
+    CreateQuery query =
+        Graphite.create(Graphite.node("Consultant").as("c"))
+            .set("id", "42")
+            .withoutReturn()
+            .build();
+
+    RenderedQuery rendered = renderer.render(query);
+
+    assertEquals("CREATE (c:Consultant {id: $p0})", rendered.cypher());
+    assertEquals(Map.of("p0", "42"), rendered.parameters());
+  }
 }

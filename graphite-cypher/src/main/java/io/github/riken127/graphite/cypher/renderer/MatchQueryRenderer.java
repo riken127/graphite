@@ -6,7 +6,12 @@ import io.github.riken127.graphite.cypher.model.RenderedQuery;
 import java.util.Objects;
 
 /** Renders {@link MatchQuery} AST models into Cypher. */
-public final class MatchQueryRenderer {
+public final class MatchQueryRenderer implements QueryRenderer<MatchQuery> {
+
+  @Override
+  public Class<MatchQuery> queryType() {
+    return MatchQuery.class;
+  }
 
   /**
    * Renders a MATCH query into Cypher and bound parameters.
@@ -21,16 +26,7 @@ public final class MatchQueryRenderer {
     StringBuilder cypher = new StringBuilder();
     ParameterAccumulator parameters = new ParameterAccumulator();
 
-    cypher
-        .append("MATCH (")
-        .append(query.nodePattern().alias())
-        .append(":")
-        .append(query.nodePattern().label())
-        .append(")");
-
-    if (!query.predicates().isEmpty()) {
-      cypher.append(" WHERE ").append(PredicateRenderer.render(query.predicates(), parameters));
-    }
+    cypher.append(MatchClauseRenderer.render(query.pathPattern(), query.predicates(), parameters));
 
     cypher.append(" RETURN ").append(String.join(", ", query.projections()));
 
@@ -39,11 +35,11 @@ public final class MatchQueryRenderer {
     }
 
     if (query.skip() != null) {
-      cypher.append(" SKIP ").append(query.skip());
+      cypher.append(" SKIP ").append(parameters.add(query.skip()));
     }
 
     if (query.limit() != null) {
-      cypher.append(" LIMIT ").append(query.limit());
+      cypher.append(" LIMIT ").append(parameters.add(query.limit()));
     }
 
     return new RenderedQuery(cypher.toString(), parameters.parameters());

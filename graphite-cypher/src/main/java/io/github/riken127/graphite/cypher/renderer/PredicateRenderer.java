@@ -2,6 +2,8 @@ package io.github.riken127.graphite.cypher.renderer;
 
 import io.github.riken127.graphite.core.model.predicate.ComparisonPredicate;
 import io.github.riken127.graphite.core.model.predicate.InPredicate;
+import io.github.riken127.graphite.core.model.predicate.LogicalPredicate;
+import io.github.riken127.graphite.core.model.predicate.NotPredicate;
 import io.github.riken127.graphite.core.model.predicate.NullPredicate;
 import io.github.riken127.graphite.core.model.predicate.Predicate;
 import io.github.riken127.graphite.core.model.predicate.TextPredicate;
@@ -35,9 +37,27 @@ final class PredicateRenderer {
     if (predicate instanceof NullPredicate nullPredicate) {
       return renderNull(nullPredicate);
     }
+    if (predicate instanceof LogicalPredicate logicalPredicate) {
+      return "("
+          + renderWithOperator(
+              logicalPredicate.predicates(), logicalPredicate.operator().name(), parameters)
+          + ")";
+    }
+    if (predicate instanceof NotPredicate notPredicate) {
+      return "NOT (" + renderPredicate(notPredicate.predicate(), parameters) + ")";
+    }
 
     throw new IllegalArgumentException(
         "unsupported predicate type: " + predicate.getClass().getSimpleName());
+  }
+
+  private static String renderWithOperator(
+      List<Predicate> predicates, String operator, ParameterAccumulator parameters) {
+    List<String> parts = new ArrayList<>();
+    for (Predicate predicate : predicates) {
+      parts.add(renderPredicate(predicate, parameters));
+    }
+    return String.join(" " + operator + " ", parts);
   }
 
   private static String renderComparison(

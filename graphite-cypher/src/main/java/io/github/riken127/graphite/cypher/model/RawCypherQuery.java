@@ -5,16 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-/** Immutable output from Cypher rendering. */
-public record RenderedQuery(String cypher, Map<String, Object> parameters) {
+/** Explicit escape hatch for trusted Cypher text with separately bound parameters. */
+public record RawCypherQuery(String cypher, Map<String, Object> parameters) {
 
-  /**
-   * Creates a rendered query result.
-   *
-   * @param cypher rendered query text
-   * @param parameters bound query parameters
-   */
-  public RenderedQuery {
+  /** Creates a validated raw query. */
+  public RawCypherQuery {
     if (cypher == null || cypher.isBlank()) {
       throw new IllegalArgumentException("cypher must not be blank");
     }

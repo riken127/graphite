@@ -5,9 +5,7 @@ import io.github.riken127.graphite.core.model.CreateQuery;
 import io.github.riken127.graphite.core.model.MatchQuery;
 import io.github.riken127.graphite.core.model.MergeQuery;
 import io.github.riken127.graphite.cypher.model.RenderedQuery;
-import io.github.riken127.graphite.cypher.renderer.CreateQueryRenderer;
-import io.github.riken127.graphite.cypher.renderer.MatchQueryRenderer;
-import io.github.riken127.graphite.cypher.renderer.MergeQueryRenderer;
+import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
 import io.github.riken127.graphite.metadata.NodeMetadata;
 import java.util.List;
 
@@ -50,9 +48,10 @@ public final class SampleUsage {
             .onMatchSet("lastSeen", "2026-04-20")
             .build();
 
-    RenderedQuery matchRendered = new MatchQueryRenderer().render(matchQuery);
-    RenderedQuery createRendered = new CreateQueryRenderer().render(createQuery);
-    RenderedQuery mergeRendered = new MergeQueryRenderer().render(mergeQuery);
+    CypherRenderer renderer = new CypherRenderer();
+    RenderedQuery matchRendered = renderer.render(matchQuery);
+    RenderedQuery createRendered = renderer.render(createQuery);
+    RenderedQuery mergeRendered = renderer.render(mergeQuery);
 
     System.out.println(matchRendered.cypher());
     System.out.println(matchRendered.parameters());
