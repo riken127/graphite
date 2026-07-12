@@ -27,4 +27,8 @@ jobs:
           java-version: "21"
           cache: maven
       - name: Verify reactor
-        run: mvn --batch-mode --no-transfer-progress clean verify
+        run: >-
+          mvn --batch-mode --no-transfer-progress
+          -Dgraphite.requireDocker=true
+          -Dgraphite.neo4j.image=neo4j:5.26-community
+          clean verify
