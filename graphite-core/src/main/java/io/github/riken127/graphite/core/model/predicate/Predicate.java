@@ -3,6 +3,10 @@ package io.github.riken127.graphite.core.model.predicate;
 /** Base contract for query predicates. */
 public sealed interface Predicate
     permits ComparisonPredicate,
+        ExpressionComparisonPredicate,
+        ExpressionInPredicate,
+        ExpressionNullPredicate,
+        ExpressionTextPredicate,
         InPredicate,
         LogicalPredicate,
         NotPredicate,

@@ -10,6 +10,16 @@ public final class Graphite {
 
   private Graphite() {}
 
+  /** Starts a general query composed from ordered typed clauses. */
+  public static ClauseQueryBuilder query() {
+    return new ClauseQueryBuilder();
+  }
+
+  /** Starts a reusable path pattern. */
+  public static PathBuilder path(NodePattern start) {
+    return new PathBuilder(start);
+  }
+
   /**
    * Starts a MATCH query for the provided node pattern.
    *
@@ -70,6 +80,12 @@ public final class Graphite {
    */
   public static PropertyRef property(String alias, String property) {
     return new PropertyRef(alias, property);
+  }
+
+  /** Creates a property reference with compile-time value constraints. */
+  public static <T> TypedPropertyRef<T> property(
+      String alias, String property, Class<T> valueType) {
+    return new TypedPropertyRef<>(alias, property, valueType);
   }
 
   /**
