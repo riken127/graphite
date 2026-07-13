@@ -13,6 +13,11 @@
   <name>Graphite Neo4j</name>
   <description>Neo4j Java Driver execution adapter for Graphite queries.</description>
 
+  <properties>
+    <!-- Docker-backed tests raise this substantially in CI; keep local verify Docker-optional. -->
+    <jacoco.minimum.line.ratio>0.10</jacoco.minimum.line.ratio>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -36,6 +41,11 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>testcontainers-junit-jupiter</artifactId>
       <scope>test</scope>
@@ -46,4 +56,19 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <profiles>
+    <profile>
+      <id>docker-coverage</id>
+      <activation>
+        <property>
+          <name>graphite.requireDocker</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <properties>
+        <jacoco.minimum.line.ratio>0.50</jacoco.minimum.line.ratio>
+      </properties>
+    </profile>
+  </profiles>
 </project>

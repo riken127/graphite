@@ -12,6 +12,10 @@
   <artifactId>graphite-test</artifactId>
   <name>Graphite Test</name>
 
+  <properties>
+    <jacoco.skip>true</jacoco.skip>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
