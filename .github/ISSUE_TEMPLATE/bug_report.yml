@@ -1,0 +1,54 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Graphite
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not include credentials, production data, or vulnerability details.
+  - type: input
+    id: version
+    attributes:
+      label: Graphite version or commit
+      placeholder: 0.1.0 or 594f9d8
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include JDK, Neo4j, framework, Kotlin/Scala, and operating-system versions as relevant.
+      placeholder: Temurin 21.0.x, Neo4j 5.26, Spring Boot 4.0.x, Ubuntu 24.04
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest model, query, configuration, or repository that reproduces the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include a redacted stack trace or rendered query when useful.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and the troubleshooting guide.
+          required: true
+        - label: This report does not contain secrets or private vulnerability details.
+          required: true
