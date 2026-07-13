@@ -92,7 +92,7 @@
     <kotlin.maven.plugin.version>${kotlin.version}</kotlin.maven.plugin.version>
     <scala.maven.plugin.version>4.9.2</scala.maven.plugin.version>
     <checkstyle.version>10.17.0</checkstyle.version>
-    <spotless.maven.plugin.version>2.43.0</spotless.maven.plugin.version>
+    <spotless.maven.plugin.version>3.8.0</spotless.maven.plugin.version>
   </properties>
 
   <dependencyManagement>
