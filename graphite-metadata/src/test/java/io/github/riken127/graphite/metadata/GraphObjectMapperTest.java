@@ -53,6 +53,27 @@ class GraphObjectMapperTest {
     assertThrows(MetadataException.class, () -> registry.metadata(Ambiguous.class));
   }
 
+  @Test
+  void mapsAnnotatedConstructorParametersWithoutDependingOnFieldOrder() {
+    GraphObjectMapper mapper = new GraphObjectMapper(registry);
+
+    ReorderedNames names =
+        mapper.map(ReorderedNames.class, Map.of("first_name", "Ada", "last_name", "Lovelace"));
+
+    assertEquals("Ada", names.firstName());
+    assertEquals("Lovelace", names.lastName());
+  }
+
+  @Test
+  void rejectsAmbiguousParametersWhenNamesAndMappingAnnotationsAreAbsent() {
+    MetadataException failure =
+        assertThrows(
+            MetadataException.class, () -> registry.metadata(UnnamedSameTypeParameters.class));
+
+    assertEquals(true, failure.getMessage().contains("cannot be matched unambiguously"));
+    assertEquals(true, failure.getMessage().contains("-parameters"));
+  }
+
   @GraphNode("Consultant")
   private static final class ImmutableConsultant {
 
@@ -63,7 +84,8 @@ class GraphObjectMapperTest {
 
     private final List<Integer> scores;
 
-    private ImmutableConsultant(String id, String name, List<Integer> scores) {
+    private ImmutableConsultant(
+        @GraphId String id, @GraphProperty("display_name") String name, List<Integer> scores) {
       this.id = id;
       this.name = name;
       this.scores = scores;
@@ -79,6 +101,41 @@ class GraphObjectMapperTest {
 
     List<Integer> scores() {
       return scores;
+    }
+  }
+
+  private static final class ReorderedNames {
+
+    @GraphProperty("first_name")
+    private final String firstName;
+
+    @GraphProperty("last_name")
+    private final String lastName;
+
+    private ReorderedNames(
+        @GraphProperty("last_name") String lastName,
+        @GraphProperty("first_name") String firstName) {
+      this.firstName = firstName;
+      this.lastName = lastName;
+    }
+
+    String firstName() {
+      return firstName;
+    }
+
+    String lastName() {
+      return lastName;
+    }
+  }
+
+  private static final class UnnamedSameTypeParameters {
+
+    private final String first;
+    private final String second;
+
+    private UnnamedSameTypeParameters(String first, String second) {
+      this.first = first;
+      this.second = second;
     }
   }
 

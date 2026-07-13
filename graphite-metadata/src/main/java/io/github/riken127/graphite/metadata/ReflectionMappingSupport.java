@@ -8,7 +8,9 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /** Shared reflection rules for metadata discovery and object construction. */
 final class ReflectionMappingSupport {
@@ -73,18 +75,11 @@ final class ReflectionMappingSupport {
     }
     java.util.ArrayList<ReflectedProperty> properties =
         new java.util.ArrayList<>(parameters.length);
+    Set<Field> matchedFields = new HashSet<>();
     for (int index = 0; index < parameters.length; index++) {
       Parameter parameter = parameters[index];
-      Field field = field(parameters, fields, index);
-      if (!boxed(parameter.getType()).equals(boxed(field.getType()))) {
-        throw new MetadataException(
-            "constructor parameter '"
-                + parameter.getName()
-                + "' does not match field '"
-                + field.getName()
-                + "' on "
-                + javaType.getName());
-      }
+      Field field = field(javaType, parameter, fields, matchedFields);
+      matchedFields.add(field);
       GraphProperty graphProperty =
           firstAnnotation(GraphProperty.class, parameter, field, accessor(javaType, field));
       boolean id =
@@ -120,18 +115,60 @@ final class ReflectionMappingSupport {
     return List.copyOf(properties);
   }
 
-  private static Field field(Parameter[] parameters, List<Field> fields, int index) {
-    Parameter parameter = parameters[index];
+  private static Field field(
+      Class<?> javaType, Parameter parameter, List<Field> fields, Set<Field> matchedFields) {
+    List<Field> compatibleFields =
+        fields.stream()
+            .filter(field -> !matchedFields.contains(field))
+            .filter(field -> boxed(parameter.getType()).equals(boxed(field.getType())))
+            .toList();
+    GraphProperty graphProperty = parameter.getAnnotation(GraphProperty.class);
+    if (graphProperty != null) {
+      List<Field> graphNameMatches =
+          compatibleFields.stream()
+              .filter(
+                  field -> {
+                    GraphProperty fieldProperty =
+                        firstAnnotation(GraphProperty.class, field, accessor(javaType, field));
+                    return fieldProperty != null
+                        && fieldProperty.value().equals(graphProperty.value());
+                  })
+              .toList();
+      if (graphNameMatches.size() == 1) {
+        return graphNameMatches.getFirst();
+      }
+    }
+
     if (parameter.isNamePresent()) {
-      for (Field field : fields) {
+      for (Field field : compatibleFields) {
         if (field.getName().equals(parameter.getName())) {
           return field;
         }
       }
-      throw new MetadataException(
-          "constructor parameter '" + parameter.getName() + "' has no matching instance field");
     }
-    return fields.get(index);
+
+    if (parameter.isAnnotationPresent(GraphId.class)) {
+      List<Field> idMatches =
+          compatibleFields.stream()
+              .filter(
+                  field -> firstAnnotation(GraphId.class, field, accessor(javaType, field)) != null)
+              .toList();
+      if (idMatches.size() == 1) {
+        return idMatches.getFirst();
+      }
+    }
+
+    if (compatibleFields.size() == 1) {
+      return compatibleFields.getFirst();
+    }
+
+    throw new MetadataException(
+        "constructor parameter names are not present and parameter '"
+            + parameter.getName()
+            + "' on "
+            + javaType.getName()
+            + " cannot be matched unambiguously; compile the model with -parameters or annotate "
+            + "the parameter and matching field/accessor with @GraphId or @GraphProperty");
   }
 
   private static Method accessor(Class<?> javaType, Field field) {
