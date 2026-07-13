@@ -1,4 +1,91 @@
-# Graphite Philosophy
+# Graphite
+
+[![CI](https://github.com/riken127/graphite/actions/workflows/ci.yml/badge.svg)](https://github.com/riken127/graphite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Java 21+](https://img.shields.io/badge/Java-21%2B-ED8B00.svg)](docs/compatibility.md)
+
+Graphite is a Java-first, graph-native query and execution library for Neo4j. It provides an
+immutable query AST, fluent parameterized DSL, deterministic Cypher rendering, typed metadata and
+object mapping, synchronous driver execution, Spring transaction integration, and optional Kotlin
+and Scala adapters.
+
+> **Project status:** Graphite is pre-1.0 and has not published its first Maven Central release.
+> APIs may evolve between minor versions. The current branch is production-oriented but should be
+> evaluated against your workload before adoption.
+
+## Quick start
+
+Requirements are JDK 21+ and the checksum-pinned Maven wrapper included in this repository. To try
+the current snapshot before the first release:
+
+```bash
+git clone https://github.com/riken127/graphite.git
+cd graphite
+./mvnw clean install
+```
+
+Import the BOM and add only the modules your application uses:
+
+```xml
+<properties>
+  <graphite.version>0.1.0-SNAPSHOT</graphite.version>
+</properties>
+
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.github.riken127</groupId>
+      <artifactId>graphite-bom</artifactId>
+      <version>${graphite.version}</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<dependencies>
+  <dependency>
+    <groupId>io.github.riken127</groupId>
+    <artifactId>graphite-core</artifactId>
+  </dependency>
+  <dependency>
+    <groupId>io.github.riken127</groupId>
+    <artifactId>graphite-cypher</artifactId>
+  </dependency>
+</dependencies>
+```
+
+Build and render a parameterized query:
+
+```java
+import io.github.riken127.graphite.core.dsl.Graphite;
+import io.github.riken127.graphite.core.model.MatchQuery;
+import io.github.riken127.graphite.cypher.model.RenderedQuery;
+import io.github.riken127.graphite.cypher.renderer.CypherRenderer;
+
+MatchQuery query =
+    Graphite.match(Graphite.node("Consultant").as("c"))
+        .where(Graphite.property("c", "id").eq("123"))
+        .select("c")
+        .limit(25)
+        .build();
+
+RenderedQuery rendered = new CypherRenderer().render(query);
+```
+
+Values are kept in `rendered.parameters()` rather than interpolated into Cypher.
+
+## Documentation
+
+* [Architecture](ARCHITECTURE.md)
+* [Compatibility matrix](docs/compatibility.md)
+* [Troubleshooting](docs/troubleshooting.md)
+* [Versioning policy](docs/versioning.md)
+* [Performance policy](docs/performance.md)
+* [Contributing](CONTRIBUTING.md)
+* [Security policy](SECURITY.md)
+* [Changelog](CHANGELOG.md)
+* [Roadmap](ROADMAP.md)
 
 ## What Graphite Is
 
@@ -49,12 +136,12 @@ The concern becomes meaning.
 
 ## Design Principles
 
-## 1. Java First
+### 1. Java First
 
 Graphite is designed for Java developers first.
 The API should feel natural in Java, readable in Java, and maintainable in Java.
 
-## 2. Graph Native
+### 2. Graph Native
 
 Graphs are not tables.
 Relationships are first-class citizens.
@@ -63,7 +150,7 @@ Paths matter.
 Direction matters.
 Graphite respects that.
 
-## 3. Type Safety Where Valuable
+### 3. Type Safety Where Valuable
 
 Use compile-time guarantees where they create real value:
 
@@ -74,23 +161,23 @@ Use compile-time guarantees where they create real value:
 
 Avoid complexity when type safety becomes ceremony.
 
-## 4. Escape Hatches Matter
+### 4. Escape Hatches Matter
 
 No abstraction covers 100% of real use cases.
 Graphite should always allow direct Cypher when needed.
 
-## 5. Composition Over Magic
+### 5. Composition Over Magic
 
 Queries should be assembled from small composable parts.
 Avoid hidden runtime behaviour, surprising conventions, or excessive annotations.
 
-## 6. Core Before Frameworks
+### 6. Core Before Frameworks
 
 The heart of Graphite is framework-independent.
 Spring integration, Boot starters, repositories, and adapters come later.
 The core model must stand alone.
 
-## 7. Readability Is a Feature
+### 7. Readability Is a Feature
 
 A query should communicate intent clearly to future maintainers.
 Readable persistence code is a competitive advantage.
@@ -139,7 +226,7 @@ Graphite exists to restore that balance.
 
 ### Module Skeleton
 
-* `graphite-bom`: published dependency-management BOM
+* `graphite-bom`: release dependency-management BOM
 * `graphite-core`: core graph API primitives
 * `graphite-cypher`: Cypher-oriented query building utilities
 * `graphite-metadata`: metadata and mapping models
@@ -174,13 +261,13 @@ Graphite exists to restore that balance.
 
 ```bash
 # format Java + POM + markdown files
-mvn spotless:apply
+./mvnw spotless:apply
 
 # run compile, tests, style, and lint checks
-mvn verify
+./mvnw verify
 
 # run tests for one module
-mvn -pl graphite-core test
+./mvnw -pl graphite-core test
 ```
 
 ## MVP Query Flow
@@ -459,9 +546,13 @@ Consultant consultant =
 
 Records use their canonical constructor. Other immutable classes may expose one constructor or mark
 the intended constructor with `@GraphConstructor`; annotations can be placed on its parameters,
-matching fields, or accessors. `GraphObjectFactories` provides an explicit factory escape hatch for
-builder-based or otherwise non-reflective construction. `RecordEntityMapper` remains as a
-record-only compatibility facade.
+matching fields, or accessors. For deterministic constructor mapping, retain parameter names with
+`-parameters` or annotate constructor parameters and their corresponding fields/accessors with
+`@GraphProperty` or `@GraphId`. Graphite never relies on reflection field order: it uses a unique
+compatible type only when that match is unambiguous and otherwise reports how to disambiguate the
+model. `GraphObjectFactories` provides an explicit factory escape hatch for builder-based or
+otherwise non-reflective construction. `RecordEntityMapper` remains as a record-only compatibility
+facade.
 
 Metadata is validated and cached per mapped type. Missing primitive properties, duplicate graph
 property names, invalid identifiers, unsupported target types, and unsafe numeric narrowing fail

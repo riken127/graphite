@@ -206,7 +206,6 @@ Planned extension points:
 
 * Query planners
 * Reactive execution adapters
-* Generated metamodels
 * Versioned schema migrations
 * Metrics-provider integrations
 * Alternative graph backends

@@ -25,7 +25,7 @@ Deliverables:
 
 ## Phase 1 — Core Query Model
 
-Status: In progress
+Status: Complete
 
 Goals:
 
@@ -47,7 +47,7 @@ Deliverables:
 
 ## Phase 2 — Fluent DSL
 
-Status: In progress
+Status: Complete
 
 Goals:
 
@@ -66,7 +66,7 @@ Deliverables:
 
 ## Phase 3 — Cypher Renderer
 
-Status: In progress
+Status: Complete
 
 Goals:
 
@@ -116,11 +116,15 @@ Completed foundations:
 * Query options, causal bookmarks, and transaction APIs
 * Cached Java-record and immutable-object mapping
 * Neo4j Testcontainers integration suite
+* Compatibility, troubleshooting, performance-policy, versioning, and release documentation
+* Checksum-pinned Maven builds with source, Javadoc, coverage, and dependency-convergence gates
+* JDK and Neo4j compatibility CI plus external Java/Kotlin/Scala/Spring Boot consumer builds
+* Signed Maven Central and GitHub release automation
 
 Remaining work:
 
 * Expression and pattern comprehensions plus vendor-specific clauses
-* Benchmarks and compatibility matrix
+* Reproducible benchmark baselines
 * Versioned migration tooling
 * KSP and native Scala metamodel generation
 
@@ -138,11 +142,11 @@ Recently completed:
 * Constructor-backed Java/Kotlin/Scala object mapping with custom factories
 * Generated Java metamodels with compile-time mapping validation
 
-Deliverables:
+Delivered:
 
-* Samples repo
-* Performance docs
-* Troubleshooting docs
+* Runnable examples and independent consumer projects
+* Performance policy and benchmark acceptance criteria
+* Compatibility and troubleshooting documentation
 
 ## Phase 6 — Advanced Features
 
